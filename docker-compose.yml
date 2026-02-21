@@ -1,0 +1,32 @@
+services:
+  pickrr:
+    image: ghcr.io/manan-santoki/pickrr:latest
+    restart: unless-stopped
+    expose:
+      - "3000"
+    volumes:
+      - /opt/pickrr/data:/app/data
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - /opt/pickrr/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

@@ -24,16 +24,11 @@ export function SearchResults({ results, isLoading, mediaType }: SearchResultsPr
   const handleGrab = async (result: ProwlarrResult) => {
     setGrabbing(result.guid);
     try {
-      const savePath =
-        mediaType === 'movie'
-          ? process.env.NEXT_PUBLIC_MOVIES_PATH ?? '/downloads/movies'
-          : process.env.NEXT_PUBLIC_TV_PATH ?? '/downloads/tv';
-
       const res = await fetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          requestId: '',
+          mediaType,
           title: result.title,
           indexer: result.indexer,
           size: result.size,

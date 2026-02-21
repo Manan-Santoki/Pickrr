@@ -7,7 +7,8 @@ import { notifySonarrDownloadComplete } from '@/services/sonarr';
 import { z } from 'zod';
 
 const downloadSchema = z.object({
-  requestId: z.string(),
+  requestId: z.string().optional(),
+  mediaType: z.enum(['movie', 'tv']).optional(),
   title: z.string(),
   indexer: z.string(),
   size: z.number(),
@@ -28,16 +29,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { requestId, downloadUrl, magnetUrl, ...torrentData } = parsed.data;
+  const { requestId, mediaType: bodyMediaType, downloadUrl, magnetUrl, ...torrentData } = parsed.data;
 
-  // Fetch the request to get mediaType + tmdbId
-  const request = await db.request.findUnique({ where: { id: requestId } });
-  if (!request) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
+  // Determine if this is a linked request or a standalone search grab
+  const isLinked = !!requestId;
 
-  const savePath =
-    request.mediaType === 'movie'
-      ? process.env.MOVIES_SAVE_PATH!
-      : process.env.TV_SAVE_PATH!;
+  let savePath: string;
+  let request: { mediaType: string; tmdbId: number } | null = null;
+
+  if (isLinked) {
+    request = await db.request.findUnique({ where: { id: requestId } });
+    if (!request) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
+    savePath =
+      request.mediaType === 'movie'
+        ? process.env.MOVIES_SAVE_PATH!
+        : process.env.TV_SAVE_PATH!;
+  } else {
+    // Standalone search grab — mediaType must be provided in body
+    const mt = bodyMediaType ?? 'movie';
+    savePath = mt === 'movie' ? process.env.MOVIES_SAVE_PATH! : process.env.TV_SAVE_PATH!;
+  }
 
   try {
     // Send to qBittorrent
@@ -49,33 +60,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No downloadUrl or magnetUrl' }, { status: 400 });
     }
 
-    // Save selection to DB
-    await db.torrent.create({
-      data: {
-        requestId,
-        title: torrentData.title,
-        indexer: torrentData.indexer,
-        size: BigInt(torrentData.size),
-        seeders: torrentData.seeders,
-        leechers: torrentData.leechers,
-        downloadUrl: downloadUrl ?? '',
-        magnetUrl: magnetUrl ?? null,
-        infoUrl: torrentData.infoUrl ?? null,
-        selectedBy: (session.user as any)?.name ?? 'admin',
-      },
-    });
+    if (isLinked && requestId) {
+      // Save selection to DB
+      await db.torrent.create({
+        data: {
+          requestId,
+          title: torrentData.title,
+          indexer: torrentData.indexer,
+          size: BigInt(torrentData.size),
+          seeders: torrentData.seeders,
+          leechers: torrentData.leechers,
+          downloadUrl: downloadUrl ?? '',
+          magnetUrl: magnetUrl ?? null,
+          infoUrl: torrentData.infoUrl ?? null,
+          selectedBy: (session.user as any)?.name ?? 'admin',
+        },
+      });
 
-    // Update request status
-    await db.request.update({
-      where: { id: requestId },
-      data: { status: 'downloading' },
-    });
+      // Update request status
+      await db.request.update({
+        where: { id: requestId },
+        data: { status: 'downloading' },
+      });
 
-    // Notify arr services
-    if (request.mediaType === 'movie') {
-      await notifyRadarrDownloadComplete(request.tmdbId);
-    } else {
-      await notifySonarrDownloadComplete();
+      // Notify arr services
+      if (request?.mediaType === 'movie') {
+        await notifyRadarrDownloadComplete(request.tmdbId);
+      } else {
+        await notifySonarrDownloadComplete();
+      }
     }
 
     return NextResponse.json({ ok: true });

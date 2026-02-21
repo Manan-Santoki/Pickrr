@@ -46,7 +46,7 @@ export function TorrentSelectModal({
     setResults([]);
     setLoading(true);
 
-    const params = new URLSearchParams({ query: title, type: mediaType });
+    const params = new URLSearchParams({ query: title, type: mediaType, limit: '50' });
     fetch(`/api/search?${params}`)
       .then((r) => r.json())
       .then((data) => {

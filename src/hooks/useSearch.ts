@@ -4,6 +4,7 @@ import type { ProwlarrResult } from '@/types/prowlarr';
 interface UseSearchOptions {
   query: string;
   type: 'movie' | 'tv';
+  limit?: number;
   enabled: boolean;
 }
 
@@ -12,14 +13,21 @@ interface SearchResponse {
   total: number;
 }
 
-const fetcher = ([url, query, type]: [string, string, string]) => {
-  const params = new URLSearchParams({ query, type });
+const fetcher = (
+  [url, query, type, limit]: [string, string, string, number]
+) => {
+  const params = new URLSearchParams({
+    query,
+    type,
+    limit: String(limit),
+  });
+
   return fetch(`${url}?${params}`).then((r) => r.json());
 };
 
-export function useSearch({ query, type, enabled }: UseSearchOptions) {
+export function useSearch({ query, type, limit = 50, enabled }: UseSearchOptions) {
   const { data, error, isLoading } = useSWR<SearchResponse>(
-    enabled && query ? ['/api/search', query, type] : null,
+    enabled && query ? ['/api/search', query, type, limit] : null,
     fetcher
   );
 

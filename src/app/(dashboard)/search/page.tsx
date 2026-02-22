@@ -220,7 +220,7 @@ export default function SearchPage() {
       {/* No results */}
       {!loading && query && tmdbResults.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center py-12 text-gray-600 border border-dashed border-gray-800 rounded-xl">
-          <p className="font-medium text-gray-500">No results for "{query}"</p>
+          <p className="font-medium text-gray-500">No results for &ldquo;{query}&rdquo;</p>
           <p className="text-sm mt-1">Try a different title or check spelling</p>
         </div>
       )}

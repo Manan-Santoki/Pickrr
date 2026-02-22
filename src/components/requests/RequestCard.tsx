@@ -50,7 +50,7 @@ function RejectConfirmDialog({
           <h3 className="text-base font-semibold text-white">Reject & Delete</h3>
         </div>
         <p className="text-sm text-gray-400 mb-5">
-          Remove <span className="text-white font-medium">"{title}"</span> from Pickrr, Overseerr, and *arr.
+          Remove <span className="text-white font-medium">&ldquo;{title}&rdquo;</span> from Pickrr, Overseerr, and *arr.
           This cannot be undone.
         </p>
         {hasDownload && (

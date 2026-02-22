@@ -3,13 +3,12 @@ set -e
 
 echo "Ensuring data directory exists..."
 mkdir -p /app/data
-chmod 755 /app/data
 
 echo "Running database migrations..."
-npx prisma migrate deploy
+prisma migrate deploy
 
 echo "Seeding database (first run only)..."
-npx prisma db seed || true
+prisma db seed || true
 
 echo "Starting webhook worker..."
 node worker.cjs &

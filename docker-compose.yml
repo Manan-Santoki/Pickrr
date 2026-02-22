@@ -1,6 +1,8 @@
 services:
   pickrr:
-    image: ghcr.io/manan-santoki/pickrr:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     expose:
       - "3000"

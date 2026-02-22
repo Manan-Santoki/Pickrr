@@ -39,10 +39,11 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Prisma client (needed by both Next.js server and worker)
+# Prisma — client runtime, CLI, and schema/migrations
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # Bundled worker (all non-Prisma deps inlined)
 COPY --from=builder --chown=nextjs:nodejs /app/dist/worker.cjs ./worker.cjs

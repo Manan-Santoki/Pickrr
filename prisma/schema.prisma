@@ -16,30 +16,35 @@ model Request {
   year            Int?
   posterPath      String?
   overview        String?
+  seasons         String?   // JSON: "[1,2,3]" — TV season numbers requested; null for movies
   status          String    @default("pending")
   // pending | searching | awaiting_selection | selected | downloading | done | failed
   requestedBy     String
   requestedAt     DateTime  @default(now())
-  selectedTorrent Torrent?
+  torrents        Torrent[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
 
 model Torrent {
-  id          String   @id @default(cuid())
-  requestId   String   @unique
-  request     Request  @relation(fields: [requestId], references: [id])
-  title       String
-  indexer     String
-  size        BigInt
-  seeders     Int
-  leechers    Int
-  infoUrl     String?
-  downloadUrl String
-  magnetUrl   String?
-  qbitHash    String?
-  selectedAt  DateTime @default(now())
-  selectedBy  String
+  id           String   @id @default(cuid())
+  requestId    String
+  request      Request  @relation(fields: [requestId], references: [id])
+  // 0 = movie or full-series pack; 1+ = specific season number
+  seasonNumber Int      @default(0)
+  title        String
+  indexer      String
+  size         BigInt
+  seeders      Int
+  leechers     Int
+  infoUrl      String?
+  downloadUrl  String
+  magnetUrl    String?
+  qbitHash     String?
+  selectedAt   DateTime @default(now())
+  selectedBy   String
+
+  @@unique([requestId, seasonNumber])
 }
 
 model Setting {
@@ -50,9 +55,11 @@ model Setting {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  password  String   // bcrypt hashed
-  role      String   @default("viewer") // "admin" | "selector" | "viewer"
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  username   String   @unique
+  password   String?              // nullable — Jellyfin users have no local password
+  role       String   @default("viewer") // "admin" | "selector" | "viewer"
+  provider   String   @default("local")  // "local" | "jellyfin"
+  externalId String?  @unique    // Jellyfin user UUID
+  createdAt  DateTime @default(now())
 }

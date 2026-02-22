@@ -7,15 +7,26 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# Rebuild the source code only when needed
+# Rebuild the source code and compile worker
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
 RUN npx prisma generate
 RUN npm run build
 
-# Production image, copy all the files and run next
+# Bundle the webhook worker as a standalone Node.js script
+# Bundles bullmq + ioredis inline; keeps @prisma/client external (native binary)
+RUN npx esbuild src/workers/webhook.worker.ts \
+  --bundle \
+  --platform=node \
+  --target=node20 \
+  --format=cjs \
+  --external:@prisma/client \
+  --outfile=dist/worker.cjs
+
+# Production image
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
@@ -23,12 +34,18 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Next.js standalone output
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# Prisma client (needed by both Next.js server and worker)
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Bundled worker (all non-Prisma deps inlined)
+COPY --from=builder --chown=nextjs:nodejs /app/dist/worker.cjs ./worker.cjs
 
 # Startup script
 COPY docker-entrypoint.sh ./

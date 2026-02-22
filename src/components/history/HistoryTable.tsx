@@ -64,22 +64,31 @@ export function HistoryTable() {
               </td>
               <td className="px-2 py-3 text-gray-400">{req.requestedBy}</td>
               <td className="px-2 py-3 text-gray-300">
-                {req.selectedTorrent ? (
-                  <span className="text-xs">
-                    <span className="bg-gray-700 text-gray-300 px-1 py-0.5 rounded mr-1 font-mono">
-                      {req.selectedTorrent.indexer}
-                    </span>
-                    {truncate(req.selectedTorrent.title, 40)}
+                {req.torrents.length > 0 ? (
+                  <span className="text-xs space-y-0.5 flex flex-col">
+                    {req.torrents.map((t) => (
+                      <span key={t.id}>
+                        <span className="bg-gray-700 text-gray-300 px-1 py-0.5 rounded mr-1 font-mono">
+                          {t.indexer}
+                        </span>
+                        {t.seasonNumber > 0 && (
+                          <span className="text-indigo-400 mr-1">S{String(t.seasonNumber).padStart(2, '0')}</span>
+                        )}
+                        {truncate(t.title, 35)}
+                      </span>
+                    ))}
                   </span>
                 ) : (
                   <span className="text-gray-600">—</span>
                 )}
               </td>
               <td className="px-2 py-3 text-right text-gray-400 font-mono text-xs">
-                {req.selectedTorrent ? formatBytes(req.selectedTorrent.size) : '—'}
+                {req.torrents.length > 0
+                  ? formatBytes(req.torrents.reduce((s, t) => s + Number(t.size), 0).toString())
+                  : '—'}
               </td>
               <td className="px-2 py-3 text-gray-400">
-                {req.selectedTorrent?.selectedBy ?? '—'}
+                {req.torrents[0]?.selectedBy ?? '—'}
               </td>
               <td className="px-2 py-3">
                 <span

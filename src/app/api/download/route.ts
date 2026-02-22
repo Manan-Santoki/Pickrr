@@ -2,19 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { addTorrentByUrl, addTorrentByMagnet } from '@/services/qbittorrent';
-import { notifyRadarrDownloadComplete } from '@/services/radarr';
-import { notifySonarrDownloadComplete } from '@/services/sonarr';
+import { approveOverseerrRequest } from '@/services/overseerr';
+import { getConfigValue } from '@/lib/settings';
 import { z } from 'zod';
 
 const downloadSchema = z.object({
   requestId: z.string().optional(),
   mediaType: z.enum(['movie', 'tv']).optional(),
+  seasonNumber: z.number().int().min(0).default(0), // 0 = movie/full pack, 1+ = season
   title: z.string(),
   indexer: z.string(),
   size: z.number(),
   seeders: z.number(),
   leechers: z.number(),
-  downloadUrl: z.string().url().nullable(),
+  downloadUrl: z.string().nullable(),
   magnetUrl: z.string().nullable(),
   infoUrl: z.string().nullable(),
 });
@@ -29,42 +30,62 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { requestId, mediaType: bodyMediaType, downloadUrl, magnetUrl, ...torrentData } = parsed.data;
+  const {
+    requestId,
+    mediaType: bodyMediaType,
+    seasonNumber,
+    downloadUrl,
+    magnetUrl,
+    ...torrentData
+  } = parsed.data;
 
-  // Determine if this is a linked request or a standalone search grab
+  if (!downloadUrl && !magnetUrl) {
+    return NextResponse.json({ error: 'No downloadUrl or magnetUrl provided' }, { status: 400 });
+  }
+
   const isLinked = !!requestId;
-
   let savePath: string;
-  let request: { mediaType: string; tmdbId: number } | null = null;
+  let request: { id: string; mediaType: string; tmdbId: number; overseerrId: number } | null = null;
 
   if (isLinked) {
     request = await db.request.findUnique({ where: { id: requestId } });
     if (!request) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
+
+    const [moviesPath, tvPath] = await Promise.all([
+      getConfigValue('MOVIES_SAVE_PATH'),
+      getConfigValue('TV_SAVE_PATH'),
+    ]);
     savePath =
       request.mediaType === 'movie'
-        ? process.env.MOVIES_SAVE_PATH!
-        : process.env.TV_SAVE_PATH!;
+        ? (moviesPath ?? '/downloads/movies')
+        : (tvPath ?? '/downloads/tv');
   } else {
-    // Standalone search grab — mediaType must be provided in body
     const mt = bodyMediaType ?? 'movie';
-    savePath = mt === 'movie' ? process.env.MOVIES_SAVE_PATH! : process.env.TV_SAVE_PATH!;
+    const [moviesPath, tvPath] = await Promise.all([
+      getConfigValue('MOVIES_SAVE_PATH'),
+      getConfigValue('TV_SAVE_PATH'),
+    ]);
+    savePath = mt === 'movie' ? (moviesPath ?? '/downloads/movies') : (tvPath ?? '/downloads/tv');
   }
 
+  const resolvedMediaType: 'movie' | 'tv' =
+    (request?.mediaType as 'movie' | 'tv' | undefined) ?? bodyMediaType ?? 'movie';
+
   try {
-    // Send to qBittorrent
+    // Send to qBittorrent with correct category/tags per media type
     if (downloadUrl) {
-      await addTorrentByUrl(downloadUrl, savePath);
+      await addTorrentByUrl(downloadUrl, savePath, resolvedMediaType);
     } else if (magnetUrl) {
-      await addTorrentByMagnet(magnetUrl, savePath);
-    } else {
-      return NextResponse.json({ error: 'No downloadUrl or magnetUrl' }, { status: 400 });
+      await addTorrentByMagnet(magnetUrl, savePath, resolvedMediaType);
     }
 
-    if (isLinked && requestId) {
-      // Save selection to DB
-      await db.torrent.create({
-        data: {
+    if (isLinked && requestId && request) {
+      // Upsert torrent record (support re-grab for same season)
+      await db.torrent.upsert({
+        where: { requestId_seasonNumber: { requestId, seasonNumber } },
+        create: {
           requestId,
+          seasonNumber,
           title: torrentData.title,
           indexer: torrentData.indexer,
           size: BigInt(torrentData.size),
@@ -73,26 +94,36 @@ export async function POST(req: NextRequest) {
           downloadUrl: downloadUrl ?? '',
           magnetUrl: magnetUrl ?? null,
           infoUrl: torrentData.infoUrl ?? null,
-          selectedBy: (session.user as any)?.name ?? 'admin',
+          selectedBy: (session.user as { name?: string })?.name ?? 'admin',
+        },
+        update: {
+          title: torrentData.title,
+          indexer: torrentData.indexer,
+          size: BigInt(torrentData.size),
+          seeders: torrentData.seeders,
+          leechers: torrentData.leechers,
+          downloadUrl: downloadUrl ?? '',
+          magnetUrl: magnetUrl ?? null,
+          infoUrl: torrentData.infoUrl ?? null,
+          selectedBy: (session.user as { name?: string })?.name ?? 'admin',
         },
       });
 
-      // Update request status
+      // Update request status to downloading
       await db.request.update({
         where: { id: requestId },
         data: { status: 'downloading' },
       });
 
-      // Notify arr services
-      if (request?.mediaType === 'movie') {
-        await notifyRadarrDownloadComplete(request.tmdbId);
-      } else {
-        await notifySonarrDownloadComplete();
-      }
+      // Approve the Overseerr request (fire-and-forget)
+      approveOverseerrRequest(request.overseerrId).catch((err) => {
+        console.error('[Download] Failed to approve Overseerr request:', err);
+      });
     }
 
     return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

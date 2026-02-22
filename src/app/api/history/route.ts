@@ -8,16 +8,15 @@ export async function GET() {
 
   const requests = await db.request.findMany({
     where: { status: { in: ['done', 'failed'] } },
-    include: { selectedTorrent: true },
+    include: { torrents: { orderBy: { seasonNumber: 'asc' } } },
     orderBy: { updatedAt: 'desc' },
   });
 
   return NextResponse.json(
     requests.map((r) => ({
       ...r,
-      selectedTorrent: r.selectedTorrent
-        ? { ...r.selectedTorrent, size: r.selectedTorrent.size.toString() }
-        : null,
+      seasons: r.seasons ? JSON.parse(r.seasons) : null,
+      torrents: r.torrents.map((t) => ({ ...t, size: t.size.toString() })),
     }))
   );
 }

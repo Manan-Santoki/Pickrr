@@ -1,6 +1,10 @@
 #!/bin/sh
 set -e
 
+echo "Ensuring data directory exists..."
+mkdir -p /app/data
+chmod 755 /app/data
+
 echo "Running database migrations..."
 npx prisma migrate deploy
 

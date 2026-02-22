@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "mkdir -p /app/data && node ./scripts/prisma-migrate-safe.cjs && node server.js",
+    "start": "mkdir -p /app/data && node server.js",
     "lint": "next lint",
     "postinstall": "node ./scripts/postinstall.cjs",
     "db:push": "prisma db push",

@@ -24,6 +24,15 @@ function runPrisma(args, options = {}) {
   };
 }
 
+function isTruthy(value) {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
 function listMigrations() {
   if (!fs.existsSync(migrationsDir)) {
     return [];
@@ -36,6 +45,37 @@ function listMigrations() {
     .sort((a, b) => a.localeCompare(b));
 }
 
+function resolveDatabaseUrl() {
+  if (process.env.DATABASE_URL && process.env.DATABASE_URL.trim().length > 0) {
+    return process.env.DATABASE_URL.trim();
+  }
+
+  const envPath = path.join(process.cwd(), ".env");
+  if (!fs.existsSync(envPath)) {
+    return null;
+  }
+
+  const envText = fs.readFileSync(envPath, "utf8");
+  const lines = envText.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    if (!trimmed.startsWith("DATABASE_URL=")) {
+      continue;
+    }
+
+    let value = trimmed.slice("DATABASE_URL=".length).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    return value;
+  }
+
+  return null;
+}
+
 function resolveAll(mode) {
   for (const migration of listMigrations()) {
     runPrisma(["migrate", "resolve", `--${mode}`, migration], { stdio: "ignore" });
@@ -43,7 +83,8 @@ function resolveAll(mode) {
 }
 
 function schemaDiffState() {
-  if (!process.env.DATABASE_URL) {
+  const databaseUrl = resolveDatabaseUrl();
+  if (!databaseUrl) {
     return "unknown";
   }
 
@@ -52,7 +93,7 @@ function schemaDiffState() {
       "migrate",
       "diff",
       "--from-url",
-      process.env.DATABASE_URL,
+      databaseUrl,
       "--to-schema-datamodel",
       schemaPath,
       "--exit-code",
@@ -76,14 +117,19 @@ function deployMigrations() {
   return result.status === 0;
 }
 
+function pushSchema(allowOverwrite) {
+  const args = ["db", "push", "--skip-generate"];
+  if (allowOverwrite) {
+    args.push("--accept-data-loss");
+  }
+
+  const result = runPrisma(args);
+  return result.status === 0;
+}
+
 function main() {
   if (!fs.existsSync(migrationsDir)) {
     console.log("No prisma/migrations directory found; skipping migrate deploy.");
-    process.exit(0);
-  }
-
-  if (!process.env.DATABASE_URL) {
-    console.log("DATABASE_URL is not set; skipping migrate deploy.");
     process.exit(0);
   }
 
@@ -106,7 +152,20 @@ function main() {
   }
 
   if (state === "diff") {
-    console.error("Database schema differs from Prisma schema; cannot auto-baseline safely.");
+    const allowOverwrite = isTruthy(process.env.PRISMA_MIGRATE_ALLOW_OVERWRITE);
+    const modeLabel = allowOverwrite ? "with overwrite enabled" : "without overwrite";
+    console.log(`Database schema differs from Prisma schema; attempting generic db push fallback (${modeLabel})...`);
+    if (pushSchema(allowOverwrite)) {
+      console.log("db push succeeded; baselining migration history.");
+      resolveAll("applied");
+      process.exit(deployMigrations() ? 0 : 1);
+    }
+
+    if (!allowOverwrite) {
+      console.error("Set PRISMA_MIGRATE_ALLOW_OVERWRITE=true to allow db push with data-loss acceptance.");
+    }
+
+    console.error("db push fallback failed; cannot auto-recover safely.");
   } else {
     console.error("Could not compare database schema with Prisma schema.");
   }

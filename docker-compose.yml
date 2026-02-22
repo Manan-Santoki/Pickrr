@@ -1,4 +1,22 @@
 services:
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    entrypoint:
+      - sh
+      - -lc
+      - node ./scripts/prisma-migrate-safe.cjs && (node ./node_modules/prisma/build/index.js db seed || true)
+    volumes:
+      - pickrr_data:/app/data
+    env_file:
+      - .env
+    environment:
+      PRISMA_MIGRATE_ALLOW_OVERWRITE: "true"
+    networks:
+      - dokploy-network
+
   pickrr:
     build:
       context: .
@@ -11,6 +29,8 @@ services:
     env_file:
       - .env
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
     networks:

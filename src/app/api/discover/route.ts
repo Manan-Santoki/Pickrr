@@ -16,7 +16,7 @@ import {
 } from '@/services/tmdb';
 
 // OTT provider catalogue
-export const OTT_PROVIDERS = [
+const OTT_PROVIDERS = [
   { id: 8,    name: 'Netflix',        color: '#E50914' },
   { id: 9,    name: 'Prime Video',    color: '#00A8E1' },
   { id: 337,  name: 'Disney+',        color: '#113CCF' },

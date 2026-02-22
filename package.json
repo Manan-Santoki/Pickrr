@@ -6,11 +6,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "mkdir -p /app/data && prisma migrate deploy && node server.js",
+    "start": "mkdir -p /app/data && node ./scripts/prisma-migrate-safe.cjs && node server.js",
     "lint": "next lint",
-    "postinstall": "prisma generate",
+    "postinstall": "node ./scripts/postinstall.cjs",
     "db:push": "prisma db push",
-    "db:migrate": "prisma migrate deploy",
+    "db:migrate": "node ./scripts/prisma-migrate-safe.cjs",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
     "db:studio": "prisma studio",
     "worker": "tsx src/workers/webhook.worker.ts"

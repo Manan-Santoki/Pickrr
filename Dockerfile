@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
+COPY scripts ./scripts
 RUN npm ci
 
 # Rebuild the source code and compile worker
@@ -49,7 +50,8 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 # Bundled worker (all non-Prisma deps inlined)
 COPY --from=builder --chown=nextjs:nodejs /app/dist/worker.cjs ./worker.cjs
 
-# Startup script
+# Migration + startup scripts
+COPY --from=builder /app/scripts ./scripts
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 

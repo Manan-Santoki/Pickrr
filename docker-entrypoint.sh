@@ -7,12 +7,12 @@ chmod 0777 /app/data || true
 chown nextjs:nodejs /app/data || true
 
 echo "Running database migrations..."
-if [ -x "./node_modules/prisma/build/index.js" ]; then
-	node ./node_modules/prisma/build/index.js migrate deploy
+if [ -f "./scripts/prisma-migrate-safe.cjs" ]; then
+	node ./scripts/prisma-migrate-safe.cjs
 	echo "Seeding database (first run only)..."
 	node ./node_modules/prisma/build/index.js db seed || true
 else
-	echo "prisma CLI not found in node_modules; skipping migrations."
+	echo "migration script not found; skipping migrations."
 fi
 
 echo "Starting webhook worker as nextjs..."

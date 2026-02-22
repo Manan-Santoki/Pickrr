@@ -7,7 +7,7 @@ services:
     expose:
       - "3000"
     volumes:
-      - /opt/pickrr/data:/app/data
+      - pickrr_data:/app/data
     env_file:
       - .env
     depends_on:
@@ -20,7 +20,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     volumes:
-      - /opt/pickrr/redis:/data
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -32,3 +32,9 @@ services:
 networks:
   dokploy-network:
     external: true
+
+volumes:
+  pickrr_data:
+    name: pickrr_data
+  redis_data:
+    name: pickrr_redis_data

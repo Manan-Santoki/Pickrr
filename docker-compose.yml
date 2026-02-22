@@ -7,7 +7,7 @@ services:
     entrypoint:
       - sh
       - -lc
-      - node ./scripts/prisma-migrate-safe.cjs && (node ./node_modules/prisma/build/index.js db seed || true)
+      - node ./scripts/prisma-migrate-safe.cjs && node ./node_modules/prisma/build/index.js db seed
     volumes:
       - pickrr_data:/app/data
     env_file:

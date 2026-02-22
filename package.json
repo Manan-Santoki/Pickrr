@@ -17,7 +17,7 @@
     "worker": "tsx src/workers/webhook.worker.ts"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "node prisma/seed.cjs"
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",

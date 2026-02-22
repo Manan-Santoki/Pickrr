@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { getSettings, setSetting } from '@/lib/settings';
+import { getConfigValue, setSetting } from '@/lib/settings';
 import { z } from 'zod';
 
 const ALL_SETTING_KEYS = [
@@ -19,14 +19,19 @@ const ALL_SETTING_KEYS = [
   'MOVIES_SAVE_PATH',
   'TV_SAVE_PATH',
   'AUTO_SELECT_HOURS',
+  'JELLYFIN_URL',
+  'JELLYFIN_API_KEY',
 ];
 
 export async function GET() {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const settings = await getSettings(ALL_SETTING_KEYS);
-  return NextResponse.json(settings);
+  // Use getConfigValue so env-var defaults are shown when no DB override exists
+  const entries = await Promise.all(
+    ALL_SETTING_KEYS.map(async (key) => [key, (await getConfigValue(key)) ?? ''] as const)
+  );
+  return NextResponse.json(Object.fromEntries(entries));
 }
 
 export async function POST(req: NextRequest) {

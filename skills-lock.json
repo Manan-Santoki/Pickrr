@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "frontend-design": {
+      "source": "anthropics/claude-code",
+      "sourceType": "github",
+      "computedHash": "e8118284a6365753790d44bb2758a6032b3af27fa84696428d9233f2be0f4e78"
+    },
+    "premium-frontend-design": {
+      "source": "kv0906/cc-skills",
+      "sourceType": "github",
+      "computedHash": "5ffdbac0925a990b9fbc846a7f88e56b8b006b74a67c18b5ce4ce0d501064b78"
+    }
+  }
+}

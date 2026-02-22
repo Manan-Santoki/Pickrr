@@ -1,16 +1,27 @@
 import type { ProwlarrResult, ProwlarrSearchResponse } from '@/types/prowlarr';
+import { getConfigValue } from '@/lib/settings';
 
-const getProwlarrConfig = () => ({
-  url: process.env.PROWLARR_URL!,
-  apiKey: process.env.PROWLARR_API_KEY!,
-});
+async function getProwlarrConfig() {
+  const [url, apiKey] = await Promise.all([
+    getConfigValue('PROWLARR_URL'),
+    getConfigValue('PROWLARR_API_KEY'),
+  ]);
+  return {
+    url: url ?? '',
+    apiKey: apiKey ?? '',
+  };
+}
 
 export async function searchProwlarr(
   query: string,
   type: 'movie' | 'tv',
   limit = 50
 ): Promise<ProwlarrResult[]> {
-  const { url, apiKey } = getProwlarrConfig();
+  const { url, apiKey } = await getProwlarrConfig();
+
+  if (!url || !apiKey) {
+    throw new Error('Prowlarr not configured — set PROWLARR_URL and PROWLARR_API_KEY in Settings');
+  }
 
   const params = new URLSearchParams({
     query,
@@ -23,7 +34,7 @@ export async function searchProwlarr(
       'X-Api-Key': apiKey,
       'Content-Type': 'application/json',
     },
-    next: { revalidate: 0 }, // never cache search results
+    cache: 'no-store',
   });
 
   if (!res.ok) {
@@ -52,7 +63,8 @@ export async function searchProwlarr(
 
 export async function testProwlarrConnection(): Promise<boolean> {
   try {
-    const { url, apiKey } = getProwlarrConfig();
+    const { url, apiKey } = await getProwlarrConfig();
+    if (!url || !apiKey) return false;
     const res = await fetch(`${url}/api/v1/system/status`, {
       headers: { 'X-Api-Key': apiKey },
     });

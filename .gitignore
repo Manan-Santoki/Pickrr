@@ -40,3 +40,9 @@ next-env.d.ts
 
 # Prisma migrations (auto-generated)
 # Keep schema, migrations are tracked
+
+# MCP config
+.mcp.json
+
+.agents/
+.claude/

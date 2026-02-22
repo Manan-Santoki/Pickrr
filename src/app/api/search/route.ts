@@ -17,7 +17,8 @@ export async function GET(req: NextRequest) {
   const parsed = searchSchema.safeParse({
     query: searchParams.get('query'),
     type: searchParams.get('type'),
-    limit: searchParams.get('limit'),
+    // null means "not provided" — convert to undefined so .default(50) fires
+    limit: searchParams.get('limit') ?? undefined,
   });
 
   if (!parsed.success) {

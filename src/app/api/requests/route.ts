@@ -1,24 +1,30 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const { searchParams } = new URL(req.url);
+  const statusFilter = searchParams.get('status'); // comma-separated or "all"
+
+  const where =
+    statusFilter && statusFilter !== 'all'
+      ? { status: { in: statusFilter.split(',') } }
+      : undefined; // return everything
+
   const requests = await db.request.findMany({
-    where: { status: { in: ['pending', 'searching', 'awaiting_selection'] } },
-    include: { selectedTorrent: true },
-    orderBy: { createdAt: 'desc' },
+    where,
+    include: { torrents: { orderBy: { seasonNumber: 'asc' } } },
+    orderBy: { requestedAt: 'desc' },
   });
 
-  // Serialize BigInt
   return NextResponse.json(
     requests.map((r) => ({
       ...r,
-      selectedTorrent: r.selectedTorrent
-        ? { ...r.selectedTorrent, size: r.selectedTorrent.size.toString() }
-        : null,
+      seasons: r.seasons ? JSON.parse(r.seasons) : null,
+      torrents: r.torrents.map((t) => ({ ...t, size: t.size.toString() })),
     }))
   );
 }

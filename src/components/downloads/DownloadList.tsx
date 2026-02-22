@@ -5,7 +5,7 @@ import { DownloadCard } from './DownloadCard';
 import { Download } from 'lucide-react';
 
 export function DownloadList() {
-  const { downloads, isLoading } = useDownloads();
+  const { downloads, isLoading, mutate } = useDownloads();
 
   if (isLoading) {
     return (
@@ -30,7 +30,7 @@ export function DownloadList() {
   return (
     <div className="flex flex-col gap-3">
       {downloads.map((download) => (
-        <DownloadCard key={download.hash} download={download} />
+        <DownloadCard key={download.hash} download={download} onAction={() => mutate()} />
       ))}
     </div>
   );

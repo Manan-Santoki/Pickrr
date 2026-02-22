@@ -3,6 +3,8 @@ set -e
 
 echo "Ensuring data directory exists..."
 mkdir -p /app/data
+chmod 0777 /app/data || true
+chown nextjs:nodejs /app/data || true
 
 echo "Running database migrations..."
 if [ -x "./node_modules/prisma/build/index.js" ]; then
@@ -13,10 +15,9 @@ else
 	echo "prisma CLI not found in node_modules; skipping migrations."
 fi
 
-echo "Starting webhook worker..."
-node worker.cjs &
-WORKER_PID=$!
-echo "Worker started (PID: $WORKER_PID)"
+echo "Starting webhook worker as nextjs..."
+su -s /bin/sh nextjs -c 'node worker.cjs &' || (echo "failed to start worker as nextjs" && exit 1)
+echo "Worker started"
 
-echo "Starting Next.js server..."
-exec node server.js
+echo "Starting Next.js server as nextjs..."
+exec su -s /bin/sh nextjs -c 'node server.js'

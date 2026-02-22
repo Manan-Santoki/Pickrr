@@ -53,7 +53,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/dist/worker.cjs ./worker.cjs
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
-RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data && chmod 0777 /app/data
 
 USER nextjs
 

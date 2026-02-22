@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "mkdir -p /app/data && node server.js",
+    "start": "node ./scripts/start.cjs",
     "lint": "next lint",
     "postinstall": "node ./scripts/postinstall.cjs",
     "db:push": "prisma db push",

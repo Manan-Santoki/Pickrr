@@ -18,7 +18,6 @@ async function main() {
       username: "admin",
       password: hash,
       role: "admin",
-      provider: "local",
     },
   });
 

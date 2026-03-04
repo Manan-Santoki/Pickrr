@@ -25,11 +25,14 @@ export async function setSetting(key: string, value: string): Promise<void> {
 }
 
 /**
- * Get a config value: DB setting first, then env var fallback.
+ * Get a config value: env var first, then DB setting fallback.
  * Returns undefined if neither is set.
  */
 export async function getConfigValue(key: string): Promise<string | undefined> {
+  const envValue = process.env[key];
+  if (envValue && envValue.trim() !== '') return envValue;
+
   const dbValue = await getSetting(key);
   if (dbValue && dbValue.trim() !== '') return dbValue;
-  return process.env[key] ?? undefined;
+  return undefined;
 }

@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Pickrr',
-  description: 'Self-hostable torrent selection layer for the arr ecosystem',
+  description: 'Self-hostable TMDB to Prowlarr to qBittorrent torrent picker',
 };
 
 export default function RootLayout({

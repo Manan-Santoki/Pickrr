@@ -36,9 +36,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (!user) return null;
 
-        // Jellyfin-linked accounts have no local password
-        if (!user.password) return null;
-
         const valid = await bcrypt.compare(
           credentials.password as string,
           user.password
@@ -49,7 +46,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return { id: user.id, name: user.username, role: user.role };
       },
     }),
-
     Credentials({
       id: 'jellyfin',
       credentials: {
@@ -60,58 +56,46 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!credentials?.username || !credentials?.password) return null;
 
         const jellyfinUrl = await getConfigValue('JELLYFIN_URL');
-        if (!jellyfinUrl) throw new Error('Jellyfin URL not configured — add it in Settings');
+        if (!jellyfinUrl) return null;
 
-        // Authenticate against Jellyfin
-        const authRes = await fetch(`${jellyfinUrl.replace(/\/$/, '')}/Users/AuthenticateByName`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'MediaBrowser Client="Pickrr", Device="Web", DeviceId="pickrr-server", Version="1.0.0"',
-          },
-          body: JSON.stringify({
-            Username: credentials.username,
-            Pw: credentials.password,
-          }),
-        });
+        const authRes = await fetch(
+          `${jellyfinUrl.replace(/\/$/, '')}/Users/AuthenticateByName`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization:
+                'MediaBrowser Client="Pickrr", Device="Web", DeviceId="pickrr-server", Version="1.0.0"',
+            },
+            body: JSON.stringify({
+              Username: credentials.username,
+              Pw: credentials.password,
+            }),
+          }
+        );
 
         if (!authRes.ok) return null;
 
-        const authData = await authRes.json() as { User?: { Id?: string; Name?: string } };
-        const jellyfinUserId = authData?.User?.Id;
-        const jellyfinUsername = (authData?.User?.Name ?? credentials.username) as string;
+        const authData = (await authRes.json()) as { User?: { Id?: string; Name?: string } };
+        const jellyfinUsername = authData?.User?.Name ?? String(credentials.username);
 
-        if (!jellyfinUserId) return null;
+        let user = await db.user.findUnique({
+          where: { username: jellyfinUsername },
+        });
 
-        // Merge-by-username / externalId logic
-        let dbUser = await db.user.findUnique({ where: { externalId: jellyfinUserId } });
-
-        if (!dbUser) {
-          const existingByUsername = await db.user.findUnique({
-            where: { username: jellyfinUsername },
+        if (!user) {
+          const generatedPassword = `${Date.now()}-${Math.random()}-${authData?.User?.Id ?? jellyfinUsername}`;
+          const passwordHash = await bcrypt.hash(generatedPassword, 12);
+          user = await db.user.create({
+            data: {
+              username: jellyfinUsername,
+              password: passwordHash,
+              role: 'user',
+            },
           });
-
-          if (existingByUsername) {
-            // Link existing local account to this Jellyfin user
-            dbUser = await db.user.update({
-              where: { id: existingByUsername.id },
-              data: { externalId: jellyfinUserId, provider: 'jellyfin' },
-            });
-          } else {
-            // Create a new viewer account for this Jellyfin user
-            dbUser = await db.user.create({
-              data: {
-                username: jellyfinUsername,
-                provider: 'jellyfin',
-                externalId: jellyfinUserId,
-                role: 'viewer',
-              },
-            });
-          }
         }
-        // Role is never overwritten — admin-granted promotions persist
 
-        return { id: dbUser.id, name: dbUser.username, role: dbUser.role };
+        return { id: user.id, name: user.username, role: user.role };
       },
     }),
   ],

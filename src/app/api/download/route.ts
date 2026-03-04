@@ -1,129 +1,133 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { addTorrentByUrl, addTorrentByMagnet } from '@/services/qbittorrent';
-import { approveOverseerrRequest } from '@/services/overseerr';
 import { getConfigValue } from '@/lib/settings';
-import { z } from 'zod';
+import { addTorrent } from '@/services/qbittorrent';
 
 const downloadSchema = z.object({
-  requestId: z.string().optional(),
-  mediaType: z.enum(['movie', 'tv']).optional(),
-  seasonNumber: z.number().int().min(0).default(0), // 0 = movie/full pack, 1+ = season
-  title: z.string(),
-  indexer: z.string(),
-  size: z.number(),
-  seeders: z.number(),
-  leechers: z.number(),
-  downloadUrl: z.string().nullable(),
-  magnetUrl: z.string().nullable(),
-  infoUrl: z.string().nullable(),
+  tmdbId: z.number().int(),
+  mediaType: z.enum(['movie', 'tv']),
+  title: z.string().min(1),
+  year: z.number().int().nullable().optional(),
+  posterPath: z.string().nullable().optional(),
+  torrentTitle: z.string().min(1),
+  indexer: z.string().min(1),
+  size: z.number().int().nonnegative(),
+  seeders: z.number().int().nonnegative(),
+  downloadUrl: z.string().nullable().optional(),
+  magnetUrl: z.string().nullable().optional(),
+  savePath: z.string().optional(),
 });
+
+async function resolveSavePath(mediaType: 'movie' | 'tv', explicitPath?: string): Promise<string> {
+  if (explicitPath && explicitPath.trim() !== '') {
+    return explicitPath.trim();
+  }
+
+  const [moviesPath, tvPath] = await Promise.all([
+    getConfigValue('MOVIES_SAVE_PATH'),
+    getConfigValue('TV_SAVE_PATH'),
+  ]);
+
+  if (mediaType === 'movie') {
+    return moviesPath ?? '/downloads/movies';
+  }
+
+  return tvPath ?? '/downloads/tv';
+}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const sessionUser = session.user as { id?: string | null };
+  const userId = typeof sessionUser?.id === 'string' && sessionUser.id.length > 0
+    ? sessionUser.id
+    : null;
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const body = await req.json();
   const parsed = downloadSchema.safeParse(body);
+
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const {
-    requestId,
-    mediaType: bodyMediaType,
-    seasonNumber,
-    downloadUrl,
-    magnetUrl,
-    ...torrentData
-  } = parsed.data;
-
-  if (!downloadUrl && !magnetUrl) {
-    return NextResponse.json({ error: 'No downloadUrl or magnetUrl provided' }, { status: 400 });
+  const payload = parsed.data;
+  if (!payload.downloadUrl && !payload.magnetUrl) {
+    return NextResponse.json({ error: 'downloadUrl or magnetUrl is required' }, { status: 400 });
   }
-
-  const isLinked = !!requestId;
-  let savePath: string;
-  let request: { id: string; mediaType: string; tmdbId: number; overseerrId: number } | null = null;
-
-  if (isLinked) {
-    request = await db.request.findUnique({ where: { id: requestId } });
-    if (!request) return NextResponse.json({ error: 'Request not found' }, { status: 404 });
-
-    const [moviesPath, tvPath] = await Promise.all([
-      getConfigValue('MOVIES_SAVE_PATH'),
-      getConfigValue('TV_SAVE_PATH'),
-    ]);
-    savePath =
-      request.mediaType === 'movie'
-        ? (moviesPath ?? '/downloads/movies')
-        : (tvPath ?? '/downloads/tv');
-  } else {
-    const mt = bodyMediaType ?? 'movie';
-    const [moviesPath, tvPath] = await Promise.all([
-      getConfigValue('MOVIES_SAVE_PATH'),
-      getConfigValue('TV_SAVE_PATH'),
-    ]);
-    savePath = mt === 'movie' ? (moviesPath ?? '/downloads/movies') : (tvPath ?? '/downloads/tv');
-  }
-
-  const resolvedMediaType: 'movie' | 'tv' =
-    (request?.mediaType as 'movie' | 'tv' | undefined) ?? bodyMediaType ?? 'movie';
 
   try {
-    // Send to qBittorrent with correct category/tags per media type
-    if (downloadUrl) {
-      await addTorrentByUrl(downloadUrl, savePath, resolvedMediaType);
-    } else if (magnetUrl) {
-      await addTorrentByMagnet(magnetUrl, savePath, resolvedMediaType);
-    }
+    const savePath = await resolveSavePath(payload.mediaType, payload.savePath);
 
-    if (isLinked && requestId && request) {
-      // Upsert torrent record (support re-grab for same season)
-      await db.torrent.upsert({
-        where: { requestId_seasonNumber: { requestId, seasonNumber } },
-        create: {
-          requestId,
-          seasonNumber,
-          title: torrentData.title,
-          indexer: torrentData.indexer,
-          size: BigInt(torrentData.size),
-          seeders: torrentData.seeders,
-          leechers: torrentData.leechers,
-          downloadUrl: downloadUrl ?? '',
-          magnetUrl: magnetUrl ?? null,
-          infoUrl: torrentData.infoUrl ?? null,
-          selectedBy: (session.user as { name?: string })?.name ?? 'admin',
+    await addTorrent(
+      {
+        downloadUrl: payload.downloadUrl ?? null,
+        magnetUrl: payload.magnetUrl ?? null,
+      },
+      savePath,
+      payload.mediaType
+    );
+
+    const created = await db.download.create({
+      data: {
+        userId,
+        tmdbId: payload.tmdbId,
+        mediaType: payload.mediaType,
+        title: payload.title,
+        year: payload.year ?? null,
+        posterPath: payload.posterPath ?? null,
+        torrentTitle: payload.torrentTitle,
+        indexer: payload.indexer,
+        size: BigInt(payload.size),
+        seeders: payload.seeders,
+        downloadUrl: payload.downloadUrl ?? '',
+        magnetUrl: payload.magnetUrl ?? null,
+        savePath,
+        status: 'downloading',
+      },
+    });
+
+    await db.mediaPreference.upsert({
+      where: {
+        userId_tmdbId_mediaType: {
+          userId,
+          tmdbId: payload.tmdbId,
+          mediaType: payload.mediaType,
         },
-        update: {
-          title: torrentData.title,
-          indexer: torrentData.indexer,
-          size: BigInt(torrentData.size),
-          seeders: torrentData.seeders,
-          leechers: torrentData.leechers,
-          downloadUrl: downloadUrl ?? '',
-          magnetUrl: magnetUrl ?? null,
-          infoUrl: torrentData.infoUrl ?? null,
-          selectedBy: (session.user as { name?: string })?.name ?? 'admin',
-        },
-      });
+      },
+      create: {
+        userId,
+        tmdbId: payload.tmdbId,
+        mediaType: payload.mediaType,
+        title: payload.title,
+        year: payload.year ?? null,
+        posterPath: payload.posterPath ?? null,
+        isFavorite: true,
+        inWatchlist: true,
+        autoFavoritedAt: new Date(),
+      },
+      update: {
+        title: payload.title,
+        year: payload.year ?? null,
+        posterPath: payload.posterPath ?? null,
+        isFavorite: true,
+        inWatchlist: true,
+        autoFavoritedAt: new Date(),
+      },
+    });
 
-      // Update request status to downloading
-      await db.request.update({
-        where: { id: requestId },
-        data: { status: 'downloading' },
-      });
-
-      // Approve the Overseerr request (fire-and-forget)
-      approveOverseerrRequest(request.overseerrId).catch((err) => {
-        console.error('[Download] Failed to approve Overseerr request:', err);
-      });
-    }
-
-    return NextResponse.json({ ok: true });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ ok: true, id: created.id, autoFavorited: true });
+  } catch (error: unknown) {
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Failed to queue download' },
+      { status: 500 }
+    );
   }
 }

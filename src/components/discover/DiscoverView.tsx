@@ -2,25 +2,32 @@
 
 import { useState, useRef, useCallback, useEffect, memo } from 'react';
 import useSWR from 'swr';
+import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import {
-  TrendingUp, Clapperboard, Calendar, Tv, Star,
-  Globe2, Film, ChevronLeft, ChevronRight, Loader2,
+  TrendingUp,
+  Clapperboard,
+  Calendar,
+  Tv,
+  Star,
+  Globe2,
+  Film,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
-import { TorrentSelectModal } from '@/components/requests/TorrentSelectModal';
 import type { TMDBMedia } from '@/services/tmdb';
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-// ── useInView — fires once when element scrolls near viewport ─────────────────
 
 function useInView(rootMargin = '300px') {
   const ref = useRef<HTMLElement | null>(null);
   const [inView, setInView] = useState(false);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el || inView) return;
+    const element = ref.current;
+    if (!element || inView) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -30,30 +37,27 @@ function useInView(rootMargin = '300px') {
       },
       { rootMargin }
     );
-    observer.observe(el);
+
+    observer.observe(element);
     return () => observer.disconnect();
   }, [inView, rootMargin]);
 
   return { ref, inView };
 }
 
-// ── Skeleton row ──────────────────────────────────────────────────────────────
-
 function RowSkeleton() {
   return (
     <div className="flex gap-3 px-6 pb-3">
-      {Array.from({ length: 9 }).map((_, i) => (
-        <div key={i} className="flex-shrink-0 w-28">
-          <div className="w-28 h-40 rounded-xl bg-gray-800/60 animate-pulse" />
-          <div className="mt-2 h-2.5 w-20 bg-gray-800/60 rounded animate-pulse" />
-          <div className="mt-1 h-2 w-12 bg-gray-800/60 rounded animate-pulse" />
+      {Array.from({ length: 9 }).map((_, index) => (
+        <div key={index} className="w-28 flex-shrink-0">
+          <div className="h-40 w-28 animate-pulse rounded-xl bg-gray-800/60" />
+          <div className="mt-2 h-2.5 w-20 animate-pulse rounded bg-gray-800/60" />
+          <div className="mt-1 h-2 w-12 animate-pulse rounded bg-gray-800/60" />
         </div>
       ))}
     </div>
   );
 }
-
-// ── Poster card ───────────────────────────────────────────────────────────────
 
 const PosterCard = memo(function PosterCard({
   item,
@@ -63,51 +67,49 @@ const PosterCard = memo(function PosterCard({
   onClick: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      className="group flex-shrink-0 w-28 text-left"
-    >
-      <div className="w-28 h-40 rounded-xl overflow-hidden bg-gray-800 border border-white/5 group-hover:border-indigo-500/40 transition-all shadow-md group-hover:shadow-indigo-900/30 group-hover:shadow-lg relative">
+    <button onClick={onClick} className="group w-28 flex-shrink-0 text-left">
+      <div className="relative h-40 w-28 overflow-hidden rounded-xl border border-white/5 bg-gray-800 shadow-md transition-all group-hover:border-indigo-500/40 group-hover:shadow-lg group-hover:shadow-indigo-900/30">
         {item.posterUrl ? (
           <Image
             src={item.posterUrl}
             alt={item.title}
             width={112}
             height={160}
-            className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             loading="lazy"
             unoptimized
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            {item.mediaType === 'movie'
-              ? <Film className="w-6 h-6 text-gray-600" />
-              : <Tv className="w-6 h-6 text-gray-600" />}
+          <div className="flex h-full w-full items-center justify-center">
+            {item.mediaType === 'movie' ? (
+              <Film className="h-6 w-6 text-gray-600" />
+            ) : (
+              <Tv className="h-6 w-6 text-gray-600" />
+            )}
           </div>
         )}
-        {item.rating > 0 && (
-          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-[10px] font-mono text-yellow-400">
-            <Star className="w-2.5 h-2.5 fill-current" />
+
+        {item.rating > 0 ? (
+          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-0.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-mono text-yellow-400 backdrop-blur-sm">
+            <Star className="h-2.5 w-2.5 fill-current" />
             {item.rating.toFixed(1)}
           </div>
-        )}
-        {item.language && item.language !== 'en' && (
-          <div className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm px-1.5 py-0.5 rounded text-[9px] uppercase font-bold text-gray-300">
+        ) : null}
+
+        {item.language && item.language !== 'en' ? (
+          <div className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-300 backdrop-blur-sm">
             {item.language}
           </div>
-        )}
+        ) : null}
       </div>
-      <p className="mt-1.5 text-xs text-gray-400 font-medium truncate group-hover:text-gray-200 transition-colors px-0.5">
+
+      <p className="mt-1.5 truncate px-0.5 text-xs font-medium text-gray-400 transition-colors group-hover:text-gray-200">
         {item.title}
       </p>
-      {item.year && (
-        <p className="text-[10px] text-gray-600 px-0.5">{item.year}</p>
-      )}
+      {item.year ? <p className="px-0.5 text-[10px] text-gray-600">{item.year}</p> : null}
     </button>
   );
 });
-
-// ── Scroll row — lazy loaded via IntersectionObserver ─────────────────────────
 
 const ScrollRow = memo(function ScrollRow({
   section,
@@ -116,6 +118,7 @@ const ScrollRow = memo(function ScrollRow({
   accent = 'text-gray-400',
   onSelect,
   mediaTypeParam,
+  viewAllHref,
   priority = false,
 }: {
   section: string;
@@ -124,16 +127,17 @@ const ScrollRow = memo(function ScrollRow({
   accent?: string;
   onSelect: (item: TMDBMedia) => void;
   mediaTypeParam?: 'movie' | 'tv';
+  viewAllHref?: string;
   priority?: boolean;
 }) {
   const { ref, inView } = useInView('300px');
 
-  // Pass null key until row is in view — pauses SWR fetch
-  const swrKey = (inView || priority)
-    ? mediaTypeParam
-      ? `/api/discover?section=${section}&mediaType=${mediaTypeParam}`
-      : `/api/discover?section=${section}`
-    : null;
+  const swrKey =
+    inView || priority
+      ? mediaTypeParam
+        ? `/api/discover?section=${section}&mediaType=${mediaTypeParam}`
+        : `/api/discover?section=${section}`
+      : null;
 
   const { data, isLoading, error } = useSWR<{ results: TMDBMedia[]; error?: string }>(
     swrKey,
@@ -142,188 +146,174 @@ const ScrollRow = memo(function ScrollRow({
   );
 
   const rowRef = useRef<HTMLDivElement>(null);
-
   const scroll = useCallback((dir: 'left' | 'right') => {
     rowRef.current?.scrollBy({ left: dir === 'left' ? -320 : 320, behavior: 'smooth' });
   }, []);
 
   const items = data?.results ?? [];
-  const hasError = error || data?.error;
+  const hasError = !!error || !!data?.error;
   const showSkeleton = !swrKey || isLoading;
 
   return (
     <section ref={ref as React.RefObject<HTMLElement>}>
-      <div className="flex items-center justify-between mb-3 px-6">
+      <div className="mb-3 flex items-center justify-between px-6">
         <div className="flex items-center gap-2">
-          <Icon className={`w-4 h-4 ${accent}`} />
+          <Icon className={`h-4 w-4 ${accent}`} />
           <h2 className="text-sm font-semibold text-gray-200">{label}</h2>
-          {!isLoading && items.length > 0 && (
-            <span className="text-[10px] text-gray-600">{items.length}</span>
-          )}
+          {!isLoading && items.length > 0 ? <span className="text-[10px] text-gray-600">{items.length}</span> : null}
         </div>
-        {items.length > 4 && (
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => scroll('left')}
-              className="p-1 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/5 transition-colors"
+
+        <div className="flex items-center gap-2">
+          {viewAllHref ? (
+            <Link
+              href={viewAllHref}
+              className="rounded-md px-2 py-1 text-xs font-medium text-indigo-300 transition-colors hover:bg-indigo-500/10 hover:text-indigo-200"
             >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => scroll('right')}
-              className="p-1 rounded-lg text-gray-600 hover:text-gray-300 hover:bg-white/5 transition-colors"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
+              View all
+            </Link>
+          ) : null}
+
+          {items.length > 4 ? (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => scroll('left')}
+                className="rounded-lg p-1 text-gray-600 transition-colors hover:bg-white/5 hover:text-gray-300"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => scroll('right')}
+                className="rounded-lg p-1 text-gray-600 transition-colors hover:bg-white/5 hover:text-gray-300"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
 
-      {showSkeleton && <RowSkeleton />}
+      {showSkeleton ? <RowSkeleton /> : null}
 
-      {!isLoading && hasError && (
+      {!isLoading && hasError ? (
         <p className="px-6 text-xs text-red-500/60">
-          {typeof data?.error === 'string' ? data.error : 'Failed to load — check TMDB API key in Settings'}
+          {typeof data?.error === 'string' ? data.error : 'Failed to load section'}
         </p>
-      )}
+      ) : null}
 
-      {!isLoading && !hasError && swrKey && items.length === 0 && (
+      {!isLoading && !hasError && swrKey && items.length === 0 ? (
         <p className="px-6 text-xs text-gray-600">Nothing to show</p>
-      )}
+      ) : null}
 
-      {items.length > 0 && (
-        <div
-          ref={rowRef}
-          className="flex gap-3 overflow-x-auto px-6 pb-3 scrollbar-none"
-          style={{ scrollbarWidth: 'none' }}
-        >
+      {items.length > 0 ? (
+        <div ref={rowRef} className="scrollbar-none flex gap-3 overflow-x-auto px-6 pb-3">
           {items.map((item) => (
-            <PosterCard
-              key={`${item.mediaType}-${item.tmdbId}`}
-              item={item}
-              onClick={() => onSelect(item)}
-            />
+            <PosterCard key={`${item.mediaType}-${item.tmdbId}`} item={item} onClick={() => onSelect(item)} />
           ))}
         </div>
-      )}
+      ) : null}
     </section>
   );
 });
 
-// ── OTT strip — with real logos ───────────────────────────────────────────────
-
 const OTT_SECTIONS = [
-  { section: 'netflix', label: 'Netflix',     color: '#E50914', logo: '/logos/netflix.svg'      },
-  { section: 'prime',   label: 'Prime Video', color: '#00A8E1', logo: '/logos/prime-video.svg'  },
-  { section: 'disney',  label: 'Disney+',     color: '#113CCF', logo: '/logos/disney-plus.svg'  },
-  { section: 'apple',   label: 'Apple TV+',   color: '#888888', logo: '/logos/apple-tv.svg'     },
-  { section: 'max',     label: 'Max',         color: '#002BE7', logo: '/logos/max2.svg'          },
-  { section: 'hulu',    label: 'Hulu',        color: '#1CE783', logo: '/logos/hulu.svg'           },
+  { section: 'netflix', label: 'Netflix', color: '#E50914', logo: '/logos/netflix.svg' },
+  { section: 'prime', label: 'Prime Video', color: '#00A8E1', logo: '/logos/prime-video.svg' },
+  { section: 'disney', label: 'Disney+', color: '#113CCF', logo: '/logos/disney-plus.svg' },
+  { section: 'apple', label: 'Apple TV+', color: '#888888', logo: '/logos/apple-tv.svg' },
+  { section: 'max', label: 'Max', color: '#002BE7', logo: '/logos/max2.svg' },
+  { section: 'hulu', label: 'Hulu', color: '#1CE783', logo: '/logos/hulu.svg' },
 ];
-
-// ── All discover sections ─────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { section: 'trending_movies',  label: 'Trending Movies',       icon: TrendingUp,   accent: 'text-indigo-400' },
-  { section: 'trending_tv',      label: 'Trending Shows',        icon: TrendingUp,   accent: 'text-purple-400' },
-  { section: 'recommendations',  label: 'Recommended For You',   icon: Star,         accent: 'text-yellow-400' },
-  { section: 'now_playing',      label: 'Now In Theaters',       icon: Clapperboard, accent: 'text-orange-400' },
-  { section: 'upcoming',         label: 'Coming Soon',           icon: Calendar,     accent: 'text-pink-400'   },
-  { section: 'on_the_air',       label: 'Currently Airing',      icon: Tv,           accent: 'text-blue-400'   },
-  { section: 'bollywood',        label: 'Bollywood',             icon: Globe2,       accent: 'text-amber-400'  },
-  { section: 'hollywood',        label: 'Hollywood',             icon: Film,         accent: 'text-red-400'    },
-  { section: 'top_rated_movies', label: 'Top Rated Movies',      icon: Star,         accent: 'text-green-400'  },
-  { section: 'top_rated_tv',     label: 'Top Rated Shows',       icon: Star,         accent: 'text-teal-400'   },
+  { section: 'trending_movies', label: 'Trending Movies', icon: TrendingUp, accent: 'text-indigo-400' },
+  { section: 'trending_tv', label: 'Trending Shows', icon: TrendingUp, accent: 'text-purple-400' },
+  { section: 'recommendations', label: 'Recommended For You', icon: Star, accent: 'text-yellow-400' },
+  { section: 'now_playing', label: 'Now In Theaters', icon: Clapperboard, accent: 'text-orange-400' },
+  { section: 'upcoming', label: 'Coming Soon', icon: Calendar, accent: 'text-pink-400' },
+  { section: 'on_the_air', label: 'Currently Airing', icon: Tv, accent: 'text-blue-400' },
+  { section: 'bollywood', label: 'Bollywood', icon: Globe2, accent: 'text-amber-400' },
+  { section: 'hollywood', label: 'Hollywood', icon: Film, accent: 'text-red-400' },
+  { section: 'top_rated_movies', label: 'Top Rated Movies', icon: Star, accent: 'text-green-400' },
+  { section: 'top_rated_tv', label: 'Top Rated Shows', icon: Star, accent: 'text-teal-400' },
 ];
 
-// ── Full discover view ────────────────────────────────────────────────────────
-
 export function DiscoverView() {
-  const [selected, setSelected]       = useState<TMDBMedia | null>(null);
-  const [activeOTT, setActiveOTT]     = useState(OTT_SECTIONS[0].section);
+  const router = useRouter();
+  const [activeOtt, setActiveOtt] = useState(OTT_SECTIONS[0].section);
   const [ottMediaType, setOttMediaType] = useState<'movie' | 'tv'>('movie');
 
-  const handleSelect = useCallback((item: TMDBMedia) => setSelected(item), []);
-  const handleClose  = useCallback(() => setSelected(null), []);
+  const handleSelect = useCallback(
+    (item: TMDBMedia) => {
+      const target = item.mediaType === 'movie' ? `/movie/${item.tmdbId}` : `/tv/${item.tmdbId}`;
+      router.push(target);
+    },
+    [router]
+  );
 
-  const activeOTTData = OTT_SECTIONS.find((o) => o.section === activeOTT)!;
+  const activeOttData = OTT_SECTIONS.find((item) => item.section === activeOtt) ?? OTT_SECTIONS[0];
 
   return (
-    <div className="py-6 space-y-8">
-      {/* Header */}
+    <div className="space-y-8 py-6">
       <div className="px-6">
         <h1 className="text-xl font-bold text-white">Discover</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Browse trending content, new releases, and streaming picks — click any title to find torrents.
+        <p className="mt-1 text-sm text-gray-500">
+          Browse trending content, new releases, and streaming picks.
         </p>
       </div>
 
-      {/* OTT selector strip */}
-      <div className="px-6 space-y-3">
+      <div className="space-y-3 px-6">
         <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {OTT_SECTIONS.map((ott) => {
-            const isActive = activeOTT === ott.section;
+            const isActive = activeOtt === ott.section;
             return (
               <button
                 key={ott.section}
-                onClick={() => setActiveOTT(ott.section)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all whitespace-nowrap flex-shrink-0 ${
+                onClick={() => setActiveOtt(ott.section)}
+                className={`flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition-all ${
                   isActive
                     ? 'border-2 text-white'
-                    : 'bg-gray-900/60 border border-white/5 text-gray-400 hover:text-gray-200 hover:border-white/10'
+                    : 'border border-white/5 bg-gray-900/60 text-gray-400 hover:border-white/10 hover:text-gray-200'
                 }`}
                 style={isActive ? { borderColor: ott.color, backgroundColor: `${ott.color}22` } : {}}
               >
-                {ott.logo ? (
-                  <Image
-                    src={ott.logo}
-                    alt={ott.label}
-                    width={18}
-                    height={18}
-                    className="object-contain flex-shrink-0"
-                    unoptimized
-                  />
-                ) : (
-                  <span className="w-[18px] h-[18px] rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold" style={{ backgroundColor: ott.color }}>H</span>
-                )}
+                <Image src={ott.logo} alt={ott.label} width={18} height={18} className="object-contain" unoptimized />
                 {ott.label}
               </button>
             );
           })}
         </div>
 
-        {/* Movies / TV pill toggle */}
-        <div className="flex items-center gap-1 bg-gray-900/60 border border-white/5 rounded-lg p-0.5 w-fit">
+        <div className="flex w-fit items-center gap-1 rounded-lg border border-white/5 bg-gray-900/60 p-0.5">
           <button
             onClick={() => setOttMediaType('movie')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
               ottMediaType === 'movie' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'
             }`}
           >
-            <Film className="w-3 h-3" />
+            <Film className="h-3 w-3" />
             Movies
           </button>
           <button
             onClick={() => setOttMediaType('tv')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
               ottMediaType === 'tv' ? 'bg-indigo-600 text-white' : 'text-gray-500 hover:text-gray-300'
             }`}
           >
-            <Tv className="w-3 h-3" />
+            <Tv className="h-3 w-3" />
             TV Shows
           </button>
         </div>
       </div>
 
-      {/* Active OTT row — priority (always fetches immediately) */}
       <ScrollRow
-        key={`${activeOTT}-${ottMediaType}`}
-        section={activeOTT}
-        label={`${activeOTTData.label} — ${ottMediaType === 'movie' ? 'Movies' : 'TV Shows'}`}
+        key={`${activeOtt}-${ottMediaType}`}
+        section={activeOtt}
+        label={`${activeOttData.label} — ${ottMediaType === 'movie' ? 'Movies' : 'TV Shows'}`}
         icon={Tv}
         accent="text-indigo-400"
         onSelect={handleSelect}
         mediaTypeParam={ottMediaType}
+        viewAllHref={`/discover/${activeOtt}?mediaType=${ottMediaType}`}
         priority
       />
 
@@ -331,31 +321,18 @@ export function DiscoverView() {
         <div className="h-px bg-white/5" />
       </div>
 
-      {/* All other sections — lazy loaded */}
-      {SECTIONS.map((s, i) => (
+      {SECTIONS.map((section, index) => (
         <ScrollRow
-          key={s.section}
-          section={s.section}
-          label={s.label}
-          icon={s.icon}
-          accent={s.accent}
+          key={section.section}
+          section={section.section}
+          label={section.label}
+          icon={section.icon}
+          accent={section.accent}
           onSelect={handleSelect}
-          priority={i < 2}
+          viewAllHref={`/discover/${section.section}`}
+          priority={index < 2}
         />
       ))}
-
-      {selected && (
-        <TorrentSelectModal
-          requestId=""
-          title={selected.title}
-          mediaType={selected.mediaType}
-          seasons={null}
-          existingTorrents={[]}
-          open={true}
-          onClose={handleClose}
-          onSuccess={handleClose}
-        />
-      )}
     </div>
   );
 }

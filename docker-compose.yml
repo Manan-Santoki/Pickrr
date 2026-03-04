@@ -1,60 +1,35 @@
 services:
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    restart: "no"
-    entrypoint:
-      - sh
-      - -lc
-      - node ./scripts/prisma-migrate-safe.cjs && node ./node_modules/prisma/build/index.js db seed
-    volumes:
-      - pickrr_data:/app/data
-    env_file:
-      - .env
-    environment:
-      PRISMA_MIGRATE_ALLOW_OVERWRITE: "true"
-    networks:
-      - dokploy-network
-
   pickrr:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
+    container_name: pickrr
     restart: unless-stopped
     expose:
       - "3000"
-    volumes:
-      - pickrr_data:/app/data
+    depends_on:
+      - postgres
     env_file:
       - .env
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      redis:
-        condition: service_healthy
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_DB: ${POSTGRES_DB:-pickrr}
+      POSTGRES_USER: ${POSTGRES_USER:-pickrr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pickrr}
     networks:
       - dokploy-network
-
-  redis:
-    image: redis:7-alpine
+  postgres:
+    image: postgres:16-alpine
+    container_name: pickrr-postgres
     restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pickrr}
+      POSTGRES_USER: ${POSTGRES_USER:-pickrr}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pickrr}
     volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      - /opt/pickrr/postgres:/var/lib/postgresql/data
     networks:
       - dokploy-network
 
 networks:
   dokploy-network:
     external: true
-
-volumes:
-  pickrr_data:
-    name: pickrr_data
-  redis_data:
-    name: pickrr_redis_data

@@ -1,20 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { testProwlarrConnection } from '@/services/prowlarr';
 import { testQbitConnection } from '@/services/qbittorrent';
-import { testRadarrConnection } from '@/services/radarr';
-import { testSonarrConnection } from '@/services/sonarr';
-import { testOverseerrConnection } from '@/services/overseerr';
 import { getConfigValue } from '@/lib/settings';
-import { z } from 'zod';
 
 const schema = z.object({
-  service: z.enum(['prowlarr', 'qbittorrent', 'radarr', 'sonarr', 'overseerr', 'jellyfin']),
+  service: z.enum(['prowlarr', 'qbittorrent', 'tmdb', 'jellyfin']),
 });
+
+async function testTmdbConnection(): Promise<boolean> {
+  const key = await getConfigValue('TMDB_API_KEY');
+  if (!key) return false;
+
+  const params = new URLSearchParams({
+    api_key: key,
+    query: 'inception',
+  });
+
+  const res = await fetch(`https://api.themoviedb.org/3/search/movie?${params}`, {
+    cache: 'no-store',
+  });
+
+  return res.ok;
+}
+
+async function testJellyfinConnection(): Promise<boolean> {
+  const jellyfinUrl = await getConfigValue('JELLYFIN_URL');
+  if (!jellyfinUrl) return false;
+
+  const res = await fetch(`${jellyfinUrl.replace(/\/$/, '')}/System/Info/Public`, {
+    cache: 'no-store',
+  });
+
+  return res.ok;
+}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const body = await req.json();
   const parsed = schema.safeParse(body);
@@ -22,37 +48,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid service' }, { status: 400 });
   }
 
-  const { service } = parsed.data;
+  const testers: Record<'prowlarr' | 'qbittorrent' | 'tmdb' | 'jellyfin', () => Promise<boolean>> = {
+    prowlarr: testProwlarrConnection,
+    qbittorrent: testQbitConnection,
+    tmdb: testTmdbConnection,
+    jellyfin: testJellyfinConnection,
+  };
 
   try {
-    if (service === 'jellyfin') {
-      const jellyfinUrl = await getConfigValue('JELLYFIN_URL');
-      const jellyfinApiKey = await getConfigValue('JELLYFIN_API_KEY');
-      if (!jellyfinUrl) {
-        return NextResponse.json({ ok: false, service, error: 'JELLYFIN_URL not configured' });
-      }
-      if (!jellyfinApiKey) {
-        return NextResponse.json({ ok: false, service, error: 'JELLYFIN_API_KEY not configured' });
-      }
-      const res = await fetch(`${jellyfinUrl.replace(/\/$/, '')}/System/Info`, {
-        headers: { 'X-Emby-Token': jellyfinApiKey },
-        signal: AbortSignal.timeout(5000),
-      });
-      return NextResponse.json({ ok: res.ok, service });
-    }
-
-    const testers: Record<string, () => Promise<boolean>> = {
-      prowlarr: testProwlarrConnection,
-      qbittorrent: testQbitConnection,
-      radarr: testRadarrConnection,
-      sonarr: testSonarrConnection,
-      overseerr: testOverseerrConnection,
-    };
-
-    const ok = await testers[service]();
-    return NextResponse.json({ ok, service });
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Connection failed';
-    return NextResponse.json({ ok: false, service, error: message });
+    const ok = await testers[parsed.data.service]();
+    return NextResponse.json({ ok, service: parsed.data.service });
+  } catch (error: unknown) {
+    return NextResponse.json({
+      ok: false,
+      service: parsed.data.service,
+      error: error instanceof Error ? error.message : 'Connection failed',
+    });
   }
 }

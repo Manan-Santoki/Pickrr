@@ -3,63 +3,67 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-model Request {
-  id              String    @id @default(cuid())
-  overseerrId     Int       @unique
-  tmdbId          Int
-  mediaType       String    // "movie" | "tv"
-  title           String
-  year            Int?
-  posterPath      String?
-  overview        String?
-  seasons         String?   // JSON: "[1,2,3]" — TV season numbers requested; null for movies
-  status          String    @default("pending")
-  // pending | searching | awaiting_selection | selected | downloading | done | failed
-  requestedBy     String
-  requestedAt     DateTime  @default(now())
-  torrents        Torrent[]
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-}
-
-model Torrent {
+model Download {
   id           String   @id @default(cuid())
-  requestId    String
-  request      Request  @relation(fields: [requestId], references: [id])
-  // 0 = movie or full-series pack; 1+ = specific season number
-  seasonNumber Int      @default(0)
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tmdbId       Int
+  mediaType    String   // "movie" | "tv"
   title        String
+  year         Int?
+  posterPath   String?
+  torrentTitle String
   indexer      String
   size         BigInt
   seeders      Int
-  leechers     Int
-  infoUrl      String?
   downloadUrl  String
   magnetUrl    String?
   qbitHash     String?
-  selectedAt   DateTime @default(now())
-  selectedBy   String
+  savePath     String
+  status       String   @default("downloading")
+  // "downloading" | "done" | "failed" | "paused"
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  @@unique([requestId, seasonNumber])
+  @@index([userId, createdAt])
 }
 
 model Setting {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     String
-  updatedAt DateTime @updatedAt
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
 }
 
 model User {
-  id         String   @id @default(cuid())
-  username   String   @unique
-  password   String?              // nullable — Jellyfin users have no local password
-  role       String   @default("viewer") // "admin" | "selector" | "viewer"
-  provider   String   @default("local")  // "local" | "jellyfin"
-  externalId String?  @unique    // Jellyfin user UUID
-  createdAt  DateTime @default(now())
+  id              String            @id @default(cuid())
+  username        String            @unique
+  password        String
+  role            String            @default("user")
+  createdAt       DateTime          @default(now())
+  downloads       Download[]
+  mediaPreferences MediaPreference[]
+}
+
+model MediaPreference {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tmdbId        Int
+  mediaType     String   // "movie" | "tv"
+  title         String
+  year          Int?
+  posterPath    String?
+  isFavorite    Boolean  @default(false)
+  inWatchlist   Boolean  @default(false)
+  autoFavoritedAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, tmdbId, mediaType])
+  @@index([userId, isFavorite, createdAt])
+  @@index([userId, inWatchlist, createdAt])
 }

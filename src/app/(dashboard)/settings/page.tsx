@@ -20,7 +20,9 @@ export default async function SettingsPage() {
     <div className="p-6 max-w-3xl mx-auto">
       <div className="mb-5">
         <h1 className="text-xl font-bold text-white">Settings</h1>
-        <p className="text-sm text-gray-500 mt-1">Configure API connections and download paths.</p>
+        <p className="text-sm text-gray-500 mt-1">
+          Configure TMDB, Prowlarr, qBittorrent, and save paths.
+        </p>
       </div>
       <SettingsForm />
     </div>

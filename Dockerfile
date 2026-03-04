@@ -6,10 +6,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma
-COPY scripts ./scripts
 RUN npm ci
 
-# Rebuild the source code and compile worker
+# Rebuild the source code
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -17,16 +16,6 @@ COPY . .
 
 RUN npx prisma generate
 RUN npm run build
-
-# Bundle the webhook worker as a standalone Node.js script
-# Bundles bullmq + ioredis inline; keeps @prisma/client external (native binary)
-RUN npx esbuild src/workers/webhook.worker.ts \
-  --bundle \
-  --platform=node \
-  --target=node20 \
-  --format=cjs \
-  --external:@prisma/client \
-  --outfile=dist/worker.cjs
 
 # Production image
 FROM base AS runner
@@ -47,15 +36,9 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
-# Bundled worker (all non-Prisma deps inlined)
-COPY --from=builder --chown=nextjs:nodejs /app/dist/worker.cjs ./worker.cjs
-
-# Migration + startup scripts
-COPY --from=builder /app/scripts ./scripts
+# Startup script
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
-
-RUN mkdir -p /app/data && chown nextjs:nodejs /app/data && chmod 0777 /app/data
 
 EXPOSE 3000
 ENV PORT=3000

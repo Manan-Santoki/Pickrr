@@ -29,7 +29,7 @@ export default function LoginPage() {
       if (result?.error) {
         toast.error(
           provider === 'jellyfin'
-            ? 'Invalid Jellyfin credentials or Jellyfin URL not configured'
+            ? 'Invalid Jellyfin credentials or Jellyfin URL is not configured'
             : 'Invalid username or password'
         );
       } else {
@@ -48,10 +48,9 @@ export default function LoginPage() {
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 shadow-2xl">
         <div className="text-center mb-6">
           <h1 className="text-3xl font-bold text-white tracking-tight">Pickrr</h1>
-          <p className="text-gray-400 mt-2 text-sm">Torrent selection for the arr ecosystem</p>
+          <p className="text-gray-400 mt-2 text-sm">Standalone torrent picker</p>
         </div>
 
-        {/* Provider tabs */}
         <div className="flex bg-gray-800 rounded-lg p-0.5 mb-6">
           <button
             type="button"
@@ -76,12 +75,6 @@ export default function LoginPage() {
             Jellyfin Account
           </button>
         </div>
-
-        {provider === 'jellyfin' && (
-          <p className="text-xs text-gray-500 bg-gray-800/60 border border-gray-700 rounded-lg px-3 py-2 mb-4">
-            Requires Jellyfin URL configured in Settings. New users are created with Viewer role.
-          </p>
-        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

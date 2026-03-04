@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { Compass, Download, LogOut, Search, Settings } from 'lucide-react';
+import { Compass, Download, Heart, LogOut, Search, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MobileNavProps {
@@ -44,6 +44,15 @@ export function MobileNav({ userRole }: MobileNavProps) {
             )}
           >
             <span className="inline-flex items-center gap-1"><Compass className="h-3.5 w-3.5" />Discover</span>
+          </Link>
+          <Link
+            href="/library"
+            className={cn(
+              'rounded-md px-2.5 py-1.5',
+              pathname.startsWith('/library') ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-300'
+            )}
+          >
+            <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" />Library</span>
           </Link>
           {userRole === 'admin' ? (
             <Link

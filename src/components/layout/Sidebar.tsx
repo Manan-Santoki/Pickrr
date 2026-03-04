@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
-import { Download, LogOut, Search, Settings, ChevronRight, Compass } from 'lucide-react';
+import { Download, LogOut, Search, Settings, ChevronRight, Compass, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -15,6 +15,7 @@ interface SidebarProps {
 const navItems = [
   { href: '/', label: 'Search', icon: Search },
   { href: '/discover', label: 'Discover', icon: Compass },
+  { href: '/library', label: 'Library', icon: Heart },
   { href: '/downloads', label: 'Downloads', icon: Download },
 ];
 

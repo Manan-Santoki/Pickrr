@@ -14,6 +14,7 @@ type JellyfinItem = {
 };
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_VERSION = 'v2';
 const availabilityCache = new Map<string, { expiresAt: number; value: boolean }>();
 
 function normalizeTitle(value: string): string {
@@ -23,7 +24,7 @@ function normalizeTitle(value: string): string {
 }
 
 function getCacheKey(tmdbId: number, mediaType: MediaType): string {
-  return `${mediaType}:${tmdbId}`;
+  return `${CACHE_VERSION}:${mediaType}:${tmdbId}`;
 }
 
 function readCache(cacheKey: string): boolean | null {
@@ -112,8 +113,11 @@ async function hasProviderMatch(
     return null;
   }
 
-  if (providerItems.length > 0) {
-    return true;
+  for (const item of providerItems) {
+    const providerId = getTmdbProviderId(item.ProviderIds);
+    if (providerId && Number(providerId) === media.tmdbId) {
+      return true;
+    }
   }
 
   return false;
@@ -153,7 +157,11 @@ async function hasSearchMatch(
       continue;
     }
 
-    if (!media.year || !Number.isFinite(candidateYear) || Math.abs(candidateYear - media.year) <= 1) {
+    if (!media.year) {
+      return true;
+    }
+
+    if (Number.isFinite(candidateYear) && Math.abs(candidateYear - media.year) <= 1) {
       return true;
     }
   }

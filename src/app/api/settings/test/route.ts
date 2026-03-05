@@ -27,10 +27,18 @@ async function testTmdbConnection(): Promise<boolean> {
 
 async function testJellyfinConnection(): Promise<boolean> {
   const jellyfinUrl = await getConfigValue('JELLYFIN_URL');
+  const jellyfinApiKey = await getConfigValue('JELLYFIN_API_KEY');
   if (!jellyfinUrl) return false;
 
-  const res = await fetch(`${jellyfinUrl.replace(/\/$/, '')}/System/Info/Public`, {
+  const baseUrl = jellyfinUrl.replace(/\/$/, '');
+  const endpoint = jellyfinApiKey ? '/System/Info' : '/System/Info/Public';
+  const res = await fetch(`${baseUrl}${endpoint}`, {
     cache: 'no-store',
+    headers: jellyfinApiKey
+      ? {
+          'X-Emby-Token': jellyfinApiKey,
+        }
+      : undefined,
   });
 
   return res.ok;

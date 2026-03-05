@@ -1,8 +1,9 @@
+import type { DiscoverSection, TMDBMedia } from '@/types/api';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useDiscoverSection } from '@/features/pickrr/api';
-import type { DiscoverSection, TMDBMedia } from '@/types/api';
+import { usePullToRefresh, useRefetchOnFocus } from '../hooks/use-screen-refresh';
 import { CinematicScreen } from '../ui/cinematic-screen';
 import { MediaCard } from '../ui/media-card';
 import { SectionHeader } from '../ui/section-header';
@@ -26,6 +27,19 @@ export function DiscoverHomeScreen() {
   const queryRecommendations = useDiscoverSection('recommendations');
   const queryNetflix = useDiscoverSection('netflix');
   const queryPrime = useDiscoverSection('prime');
+  const refreshDiscover = React.useCallback(async () => {
+    await Promise.all([
+      queryTrending.refetch(),
+      queryNowPlaying.refetch(),
+      queryPopularTv.refetch(),
+      queryRecommendations.refetch(),
+      queryNetflix.refetch(),
+      queryPrime.refetch(),
+    ]);
+  }, [queryNetflix, queryNowPlaying, queryPopularTv, queryPrime, queryRecommendations, queryTrending]);
+
+  useRefetchOnFocus(refreshDiscover);
+  const { refreshing, onRefresh } = usePullToRefresh(refreshDiscover);
 
   const sections: Record<DiscoverSection, { data?: TMDBMedia[]; isPending: boolean }> = {
     trending: { data: queryTrending.data, isPending: queryTrending.isPending },
@@ -56,7 +70,18 @@ export function DiscoverHomeScreen() {
         <Text style={styles.subtitle}>Curated rows from trending, theatrical, OTT providers, and recommendations.</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.rows}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.rows}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FF9659"
+            colors={['#FF9659']}
+          />
+        )}
+      >
         {discoverRows.map((row) => {
           const current = sections[row.key];
 
@@ -69,21 +94,25 @@ export function DiscoverHomeScreen() {
                 onPressCta={() => router.push(`/discover/category/${row.key}`)}
               />
 
-              {current.isPending ? (
-                <LoadingPanel label="Loading row" />
-              ) : current.data && current.data.length > 0 ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
-                  {current.data.map((item) => (
-                    <MediaCard
-                      key={`${row.key}-${item.mediaType}-${item.tmdbId}`}
-                      item={item}
-                      onPress={(next) => router.push(`/media/${next.mediaType}/${next.tmdbId}`)}
-                    />
-                  ))}
-                </ScrollView>
-              ) : (
-                <EmptyPanel title="No data" subtitle="This row returned no items." />
-              )}
+              {current.isPending
+                ? (
+                    <LoadingPanel label="Loading row" />
+                  )
+                : current.data && current.data.length > 0
+                  ? (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+                        {current.data.map(item => (
+                          <MediaCard
+                            key={`${row.key}-${item.mediaType}-${item.tmdbId}`}
+                            item={item}
+                            onPress={next => router.push(`/media/${next.mediaType}/${next.tmdbId}`)}
+                          />
+                        ))}
+                      </ScrollView>
+                    )
+                  : (
+                      <EmptyPanel title="No data" subtitle="This row returned no items." />
+                    )}
             </View>
           );
         })}

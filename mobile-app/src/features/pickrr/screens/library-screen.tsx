@@ -2,8 +2,9 @@ import type { LibraryItem } from '@/types/api';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLibrary } from '@/features/pickrr/api';
+import { usePullToRefresh, useRefetchOnFocus } from '../hooks/use-screen-refresh';
 import { CinematicScreen } from '../ui/cinematic-screen';
 import { SegmentedControl } from '../ui/segmented-control';
 import { EmptyPanel, ErrorPanel, LoadingPanel } from '../ui/state-panels';
@@ -14,6 +15,11 @@ export function LibraryScreen() {
   const [mode, setMode] = React.useState<'grid' | 'list'>('grid');
 
   const libraryQuery = useLibrary(list);
+  const refreshLibrary = React.useCallback(async () => {
+    await libraryQuery.refetch();
+  }, [libraryQuery]);
+  useRefetchOnFocus(refreshLibrary);
+  const { refreshing, onRefresh } = usePullToRefresh(refreshLibrary);
 
   const columns = mode === 'grid' ? 2 : 1;
 
@@ -42,29 +48,73 @@ export function LibraryScreen() {
         ]}
       />
 
-      {libraryQuery.isPending ? (
-        <LoadingPanel label="Loading library" />
-      ) : libraryQuery.isError || !libraryQuery.data ? (
-        <ErrorPanel message="Unable to load library." />
-      ) : libraryQuery.data.results.length === 0 ? (
-        <EmptyPanel title="No items" subtitle="Add items from media detail actions." />
-      ) : (
-        <FlatList
-          data={libraryQuery.data.results}
-          keyExtractor={(item) => item.id}
-          key={columns}
-          numColumns={columns}
-          contentContainerStyle={styles.list}
-          columnWrapperStyle={columns === 2 ? styles.gridRow : undefined}
-          renderItem={({ item }) => (
-            <LibraryItemCard
-              item={item}
-              mode={mode}
-              onPress={() => router.push(`/media/${item.mediaType}/${item.tmdbId}`)}
-            />
-          )}
-        />
-      )}
+      {libraryQuery.isPending
+        ? (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              refreshControl={(
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#FF9659"
+                  colors={['#FF9659']}
+                />
+              )}
+            >
+              <LoadingPanel label="Loading library" />
+            </ScrollView>
+          )
+        : libraryQuery.isError || !libraryQuery.data
+          ? (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                refreshControl={(
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor="#FF9659"
+                    colors={['#FF9659']}
+                  />
+                )}
+              >
+                <ErrorPanel message="Unable to load library." />
+              </ScrollView>
+            )
+          : libraryQuery.data.results.length === 0
+            ? (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  refreshControl={(
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      tintColor="#FF9659"
+                      colors={['#FF9659']}
+                    />
+                  )}
+                >
+                  <EmptyPanel title="No items" subtitle="Add items from media detail actions." />
+                </ScrollView>
+              )
+            : (
+                <FlatList
+                  data={libraryQuery.data.results}
+                  keyExtractor={item => item.id}
+                  key={columns}
+                  numColumns={columns}
+                  contentContainerStyle={styles.list}
+                  columnWrapperStyle={columns === 2 ? styles.gridRow : undefined}
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  renderItem={({ item }) => (
+                    <LibraryItemCard
+                      item={item}
+                      mode={mode}
+                      onPress={() => router.push(`/media/${item.mediaType}/${item.tmdbId}`)}
+                    />
+                  )}
+                />
+              )}
     </CinematicScreen>
   );
 }
@@ -94,7 +144,10 @@ function LibraryItemCard({
           {item.title}
         </Text>
         <Text style={styles.cardSubtitle}>
-          {item.mediaType.toUpperCase()} • {item.year ?? 'NA'}
+          {item.mediaType.toUpperCase()}
+          {' '}
+          •
+          {item.year ?? 'NA'}
         </Text>
       </View>
     </Pressable>

@@ -11,6 +11,7 @@ const SETTING_KEYS = [
   'QBIT_PASSWORD',
   'TMDB_API_KEY',
   'JELLYFIN_URL',
+  'JELLYFIN_API_KEY',
   'MOVIES_SAVE_PATH',
   'TV_SAVE_PATH',
 ] as const;
@@ -23,6 +24,7 @@ const settingsSchema = z.object({
   QBIT_PASSWORD: z.string(),
   TMDB_API_KEY: z.string(),
   JELLYFIN_URL: z.string(),
+  JELLYFIN_API_KEY: z.string(),
   MOVIES_SAVE_PATH: z.string(),
   TV_SAVE_PATH: z.string(),
 });

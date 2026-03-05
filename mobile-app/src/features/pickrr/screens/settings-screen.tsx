@@ -1,7 +1,10 @@
+import type { SettingsPayload } from '@/types/api';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Env from 'env';
 import * as React from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { showMessage } from 'react-native-flash-message';
+import { getAuthSession, signOut, useAuthStore } from '@/features/auth/use-auth-store';
 import {
   mobileLogout,
   pickrrQueryKeys,
@@ -9,8 +12,7 @@ import {
   testServiceConnection,
   useSettings,
 } from '@/features/pickrr/api';
-import { getAuthSession, signOut, useAuthStore } from '@/features/auth/use-auth-store';
-import type { SettingsPayload } from '@/types/api';
+import { usePullToRefresh, useRefetchOnFocus } from '../hooks/use-screen-refresh';
 import { ActionButton } from '../ui/action-button';
 import { CinematicScreen } from '../ui/cinematic-screen';
 import { ErrorPanel, LoadingPanel } from '../ui/state-panels';
@@ -23,16 +25,23 @@ const emptySettings: SettingsPayload = {
   QBIT_PASSWORD: '',
   TMDB_API_KEY: '',
   JELLYFIN_URL: '',
+  JELLYFIN_API_KEY: '',
   MOVIES_SAVE_PATH: '',
   TV_SAVE_PATH: '',
 };
 
+// eslint-disable-next-line max-lines-per-function
 export function SettingsScreen() {
   const queryClient = useQueryClient();
   const session = useAuthStore.use.session();
   const isAdmin = session?.user.role === 'admin';
 
   const settingsQuery = useSettings();
+  const refreshSettings = React.useCallback(async () => {
+    await settingsQuery.refetch();
+  }, [settingsQuery]);
+  useRefetchOnFocus(refreshSettings);
+  const { refreshing, onRefresh } = usePullToRefresh(refreshSettings);
   const [form, setForm] = React.useState<SettingsPayload>(emptySettings);
   const [status, setStatus] = React.useState<string | null>(null);
 
@@ -47,9 +56,17 @@ export function SettingsScreen() {
     onSuccess: () => {
       setStatus('Settings saved');
       queryClient.invalidateQueries({ queryKey: pickrrQueryKeys.settings });
+      showMessage({
+        message: 'Settings saved',
+        type: 'success',
+      });
     },
     onError: () => {
       setStatus('Failed to save settings');
+      showMessage({
+        message: 'Failed to save settings',
+        type: 'danger',
+      });
     },
   });
 
@@ -57,9 +74,17 @@ export function SettingsScreen() {
     mutationFn: testServiceConnection,
     onSuccess: (result) => {
       setStatus(result.ok ? `${result.service} connected` : `${result.service} failed`);
+      showMessage({
+        message: result.ok ? `${result.service} connected` : `${result.service} failed`,
+        type: result.ok ? 'success' : 'warning',
+      });
     },
     onError: () => {
       setStatus('Connection test failed');
+      showMessage({
+        message: 'Connection test failed',
+        type: 'danger',
+      });
     },
   });
 
@@ -82,106 +107,175 @@ export function SettingsScreen() {
             ? 'Admin controls for service credentials, save paths, and health tests.'
             : 'App-level preferences and account controls.'}
         </Text>
-        <Text style={styles.subtitle}>Role: {session?.user.role ?? 'user'}</Text>
+        <Text style={styles.subtitle}>
+          Role:
+          {session?.user.role ?? 'user'}
+        </Text>
       </View>
 
-      {!isAdmin ? (
-        <View style={styles.panel}>
-          <Text style={styles.sectionTitle}>Application</Text>
-          <Text style={styles.infoText}>Environment: {Env.EXPO_PUBLIC_APP_ENV}</Text>
-          <Text style={styles.infoText}>Version: {Env.EXPO_PUBLIC_VERSION}</Text>
-          <Text style={styles.infoText}>Theme: cinematic dark (default)</Text>
-          <ActionButton
-            label="Sign out"
-            variant="danger"
-            onPress={() => logoutMutation.mutate()}
-            loading={logoutMutation.isPending}
-          />
-        </View>
-      ) : settingsQuery.isPending ? (
-        <LoadingPanel label="Loading admin settings" />
-      ) : settingsQuery.isError ? (
-        <ErrorPanel message="Unable to load settings from backend." />
-      ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          <View style={styles.panel}>
-            <Text style={styles.sectionTitle}>Service Credentials</Text>
-            <SettingsInput
-              label="Prowlarr URL"
-              value={form.PROWLARR_URL}
-              onChangeText={(value) => setForm((previous) => ({ ...previous, PROWLARR_URL: value }))}
-            />
-            <SettingsInput
-              label="Prowlarr API Key"
-              value={form.PROWLARR_API_KEY}
-              onChangeText={(value) => setForm((previous) => ({ ...previous, PROWLARR_API_KEY: value }))}
-            />
-            <SettingsInput
-              label="qBittorrent URL"
-              value={form.QBIT_URL}
-              onChangeText={(value) => setForm((previous) => ({ ...previous, QBIT_URL: value }))}
-            />
-            <SettingsInput
-              label="qBittorrent Username"
-              value={form.QBIT_USERNAME}
-              onChangeText={(value) => setForm((previous) => ({ ...previous, QBIT_USERNAME: value }))}
-            />
-            <SettingsInput
-              label="qBittorrent Password"
-              value={form.QBIT_PASSWORD}
-              secureTextEntry
-              onChangeText={(value) => setForm((previous) => ({ ...previous, QBIT_PASSWORD: value }))}
-            />
-            <SettingsInput
-              label="TMDB API Key"
-              value={form.TMDB_API_KEY}
-              onChangeText={(value) => setForm((previous) => ({ ...previous, TMDB_API_KEY: value }))}
-            />
-            <SettingsInput
-              label="Jellyfin URL"
-              value={form.JELLYFIN_URL}
-              onChangeText={(value) => setForm((previous) => ({ ...previous, JELLYFIN_URL: value }))}
-            />
-          </View>
+      {!isAdmin
+        ? (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.scrollContent}
+              refreshControl={(
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#FF9659"
+                  colors={['#FF9659']}
+                />
+              )}
+            >
+              <View style={styles.panel}>
+                <Text style={styles.sectionTitle}>Application</Text>
+                <Text style={styles.infoText}>
+                  Environment:
+                  {Env.EXPO_PUBLIC_APP_ENV}
+                </Text>
+                <Text style={styles.infoText}>
+                  Version:
+                  {Env.EXPO_PUBLIC_VERSION}
+                </Text>
+                <Text style={styles.infoText}>Theme: cinematic dark (default)</Text>
+                <ActionButton
+                  label="Sign out"
+                  variant="danger"
+                  onPress={() => logoutMutation.mutate()}
+                  loading={logoutMutation.isPending}
+                />
+              </View>
+            </ScrollView>
+          )
+        : settingsQuery.isPending
+          ? (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                refreshControl={(
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor="#FF9659"
+                    colors={['#FF9659']}
+                  />
+                )}
+              >
+                <LoadingPanel label="Loading admin settings" />
+              </ScrollView>
+            )
+          : settingsQuery.isError
+            ? (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  refreshControl={(
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      tintColor="#FF9659"
+                      colors={['#FF9659']}
+                    />
+                  )}
+                >
+                  <ErrorPanel message="Unable to load settings from backend." />
+                </ScrollView>
+              )
+            : (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.scrollContent}
+                  refreshControl={(
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      tintColor="#FF9659"
+                      colors={['#FF9659']}
+                    />
+                  )}
+                >
+                  <View style={styles.panel}>
+                    <Text style={styles.sectionTitle}>Service Credentials</Text>
+                    <SettingsInput
+                      label="Prowlarr URL"
+                      value={form.PROWLARR_URL}
+                      onChangeText={value => setForm(previous => ({ ...previous, PROWLARR_URL: value }))}
+                    />
+                    <SettingsInput
+                      label="Prowlarr API Key"
+                      value={form.PROWLARR_API_KEY}
+                      onChangeText={value => setForm(previous => ({ ...previous, PROWLARR_API_KEY: value }))}
+                    />
+                    <SettingsInput
+                      label="qBittorrent URL"
+                      value={form.QBIT_URL}
+                      onChangeText={value => setForm(previous => ({ ...previous, QBIT_URL: value }))}
+                    />
+                    <SettingsInput
+                      label="qBittorrent Username"
+                      value={form.QBIT_USERNAME}
+                      onChangeText={value => setForm(previous => ({ ...previous, QBIT_USERNAME: value }))}
+                    />
+                    <SettingsInput
+                      label="qBittorrent Password"
+                      value={form.QBIT_PASSWORD}
+                      secureTextEntry
+                      onChangeText={value => setForm(previous => ({ ...previous, QBIT_PASSWORD: value }))}
+                    />
+                    <SettingsInput
+                      label="TMDB API Key"
+                      value={form.TMDB_API_KEY}
+                      onChangeText={value => setForm(previous => ({ ...previous, TMDB_API_KEY: value }))}
+                    />
+                    <SettingsInput
+                      label="Jellyfin URL"
+                      value={form.JELLYFIN_URL}
+                      onChangeText={value => setForm(previous => ({ ...previous, JELLYFIN_URL: value }))}
+                    />
+                    <SettingsInput
+                      label="Jellyfin API Key"
+                      value={form.JELLYFIN_API_KEY}
+                      secureTextEntry
+                      onChangeText={value => setForm(previous => ({ ...previous, JELLYFIN_API_KEY: value }))}
+                    />
+                  </View>
 
-          <View style={styles.panel}>
-            <Text style={styles.sectionTitle}>Save Paths</Text>
-            <SettingsInput
-              label="Movies path"
-              value={form.MOVIES_SAVE_PATH}
-              onChangeText={(value) => setForm((previous) => ({ ...previous, MOVIES_SAVE_PATH: value }))}
-            />
-            <SettingsInput
-              label="TV path"
-              value={form.TV_SAVE_PATH}
-              onChangeText={(value) => setForm((previous) => ({ ...previous, TV_SAVE_PATH: value }))}
-            />
-          </View>
+                  <View style={styles.panel}>
+                    <Text style={styles.sectionTitle}>Save Paths</Text>
+                    <SettingsInput
+                      label="Movies path"
+                      value={form.MOVIES_SAVE_PATH}
+                      onChangeText={value => setForm(previous => ({ ...previous, MOVIES_SAVE_PATH: value }))}
+                    />
+                    <SettingsInput
+                      label="TV path"
+                      value={form.TV_SAVE_PATH}
+                      onChangeText={value => setForm(previous => ({ ...previous, TV_SAVE_PATH: value }))}
+                    />
+                  </View>
 
-          <View style={styles.panel}>
-            <Text style={styles.sectionTitle}>Connectivity Tests</Text>
-            <View style={styles.testButtons}>
-              <ActionButton label="Test Prowlarr" variant="secondary" onPress={() => testMutation.mutate('prowlarr')} />
-              <ActionButton label="Test qBittorrent" variant="secondary" onPress={() => testMutation.mutate('qbittorrent')} />
-              <ActionButton label="Test TMDB" variant="secondary" onPress={() => testMutation.mutate('tmdb')} />
-              <ActionButton label="Test Jellyfin" variant="secondary" onPress={() => testMutation.mutate('jellyfin')} />
-            </View>
-          </View>
+                  <View style={styles.panel}>
+                    <Text style={styles.sectionTitle}>Connectivity Tests</Text>
+                    <View style={styles.testButtons}>
+                      <ActionButton label="Test Prowlarr" variant="secondary" onPress={() => testMutation.mutate('prowlarr')} />
+                      <ActionButton label="Test qBittorrent" variant="secondary" onPress={() => testMutation.mutate('qbittorrent')} />
+                      <ActionButton label="Test TMDB" variant="secondary" onPress={() => testMutation.mutate('tmdb')} />
+                      <ActionButton label="Test Jellyfin" variant="secondary" onPress={() => testMutation.mutate('jellyfin')} />
+                    </View>
+                  </View>
 
-          <ActionButton
-            label="Save Settings"
-            onPress={() => saveMutation.mutate(form)}
-            loading={saveMutation.isPending}
-          />
+                  <ActionButton
+                    label="Save Settings"
+                    onPress={() => saveMutation.mutate(form)}
+                    loading={saveMutation.isPending}
+                  />
 
-          <ActionButton
-            label="Sign out"
-            variant="danger"
-            onPress={() => logoutMutation.mutate()}
-            loading={logoutMutation.isPending}
-          />
-        </ScrollView>
-      )}
+                  <ActionButton
+                    label="Sign out"
+                    variant="danger"
+                    onPress={() => logoutMutation.mutate()}
+                    loading={logoutMutation.isPending}
+                  />
+                </ScrollView>
+              )}
 
       {status ? <Text style={styles.status}>{status}</Text> : null}
     </CinematicScreen>

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import * as React from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FocusAwareStatusBar } from '@/components/ui/focus-aware-status-bar';
 
 type CinematicScreenProps = {
   children: ReactNode;
@@ -16,22 +17,26 @@ export function CinematicScreen({
 }: CinematicScreenProps) {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <FocusAwareStatusBar />
+
       <View style={styles.background}>
         <View style={[styles.orb, styles.orbPrimary]} />
         <View style={[styles.orb, styles.orbSecondary]} />
         <View style={[styles.orb, styles.orbTertiary]} />
       </View>
 
-      {scroll ? (
-        <ScrollView
-          contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
-          showsVerticalScrollIndicator={false}
-        >
-          {children}
-        </ScrollView>
-      ) : (
-        <View style={[styles.scrollContent, contentContainerStyle]}>{children}</View>
-      )}
+      {scroll
+        ? (
+            <ScrollView
+              contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+              showsVerticalScrollIndicator={false}
+            >
+              {children}
+            </ScrollView>
+          )
+        : (
+            <View style={[styles.scrollContent, contentContainerStyle]}>{children}</View>
+          )}
     </SafeAreaView>
   );
 }

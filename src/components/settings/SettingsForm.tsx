@@ -36,6 +36,7 @@ const SECTION_CONFIG = [
     service: 'jellyfin' as const,
     fields: [
       { key: 'JELLYFIN_URL', label: 'URL', type: 'url', placeholder: 'http://jellyfin:8096' },
+      { key: 'JELLYFIN_API_KEY', label: 'API Key', type: 'password', placeholder: 'Jellyfin API key' },
     ],
   },
   {
@@ -56,6 +57,7 @@ type SettingsState = {
   QBIT_PASSWORD: string;
   TMDB_API_KEY: string;
   JELLYFIN_URL: string;
+  JELLYFIN_API_KEY: string;
   MOVIES_SAVE_PATH: string;
   TV_SAVE_PATH: string;
 };
@@ -68,6 +70,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   QBIT_PASSWORD: '',
   TMDB_API_KEY: '',
   JELLYFIN_URL: '',
+  JELLYFIN_API_KEY: '',
   MOVIES_SAVE_PATH: '',
   TV_SAVE_PATH: '',
 };

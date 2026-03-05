@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Loader2, Search, Star, Tv, Film, X } from 'lucide-react';
+import { CheckCircle2, Film, Loader2, Search, Star, Tv, X } from 'lucide-react';
 import type { TMDBMedia } from '@/services/tmdb';
 
 interface SearchResponse {
@@ -159,9 +159,17 @@ export function TmdbSearchView() {
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-white group-hover:text-indigo-200">
-                  {item.title}
-                </p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-sm font-semibold text-white group-hover:text-indigo-200">
+                    {item.title}
+                  </p>
+                  {item.inJellyfin ? (
+                    <span className="inline-flex flex-shrink-0 items-center gap-1 rounded bg-emerald-950/80 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                      <CheckCircle2 className="h-2.5 w-2.5" />
+                      In Jellyfin
+                    </span>
+                  ) : null}
+                </div>
                 <div className="mt-0.5 flex items-center gap-2 text-xs text-gray-500">
                   {item.year ? <span>{item.year}</span> : null}
                   <span className="uppercase">{item.mediaType}</span>

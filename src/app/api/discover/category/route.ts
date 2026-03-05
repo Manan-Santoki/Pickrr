@@ -11,6 +11,7 @@ import {
 import { db } from '@/lib/db';
 import { getRequestUser } from '@/lib/mobile-auth';
 import { getConfigValue } from '@/lib/settings';
+import { annotateWithJellyfinAvailability } from '@/services/jellyfin';
 import { getRecommendations, type MediaType, type TMDBMedia } from '@/services/tmdb';
 
 const TMDB_BASE = 'https://api.themoviedb.org/3';
@@ -76,6 +77,7 @@ function normaliseMedia(item: Record<string, unknown>, mediaType: MediaType): TM
     mediaType,
     genres: [],
     language: typeof item.original_language === 'string' ? item.original_language : null,
+    inJellyfin: false,
   };
 }
 
@@ -470,11 +472,12 @@ export async function GET(req: NextRequest) {
       const totalResults = sorted.length;
       const totalPages = Math.max(1, Math.ceil(totalResults / limit));
       const results = paginateItems(sorted, page, limit);
+      const annotatedResults = await annotateWithJellyfinAvailability(results);
 
       return NextResponse.json({
         section,
         label: DISCOVER_LABELS[section],
-        results,
+        results: annotatedResults,
         page,
         totalPages,
         totalResults,
@@ -509,11 +512,12 @@ export async function GET(req: NextRequest) {
 
     const sorted = sortBy(filtered, sort);
     const results = sorted.slice(0, limit);
+    const annotatedResults = await annotateWithJellyfinAvailability(results);
 
     return NextResponse.json({
       section,
       label: DISCOVER_LABELS[section],
-      results,
+      results: annotatedResults,
       page,
       totalPages: payload.totalPages,
       totalResults: payload.totalResults,

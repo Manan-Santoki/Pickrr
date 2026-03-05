@@ -1,8 +1,9 @@
 import type { MediaType } from '@/types/api';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
-import { FlatList, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTmdbSearch } from '@/features/pickrr/api';
+import { usePullToRefresh, useRefetchOnFocus } from '../hooks/use-screen-refresh';
 import { CinematicScreen } from '../ui/cinematic-screen';
 import { MediaCard } from '../ui/media-card';
 import { SegmentedControl } from '../ui/segmented-control';
@@ -19,6 +20,7 @@ function useDebouncedValue(value: string, delay = 320) {
   return debounced;
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function SearchScreen() {
   const router = useRouter();
   const [query, setQuery] = React.useState('');
@@ -26,6 +28,17 @@ export function SearchScreen() {
 
   const debouncedQuery = useDebouncedValue(query);
   const searchQuery = useTmdbSearch(debouncedQuery, type);
+  const canFetch = debouncedQuery.trim().length > 1;
+
+  const refreshSearch = React.useCallback(async () => {
+    if (!canFetch) {
+      return;
+    }
+    await searchQuery.refetch();
+  }, [canFetch, searchQuery]);
+
+  useRefetchOnFocus(refreshSearch, canFetch);
+  const { refreshing, onRefresh } = usePullToRefresh(refreshSearch);
 
   return (
     <CinematicScreen scroll={false} contentContainerStyle={styles.container}>
@@ -54,32 +67,90 @@ export function SearchScreen() {
         ]}
       />
 
-      {debouncedQuery.trim().length < 2 ? (
-        <EmptyPanel
-          title="Start typing"
-          subtitle="Search supports all TMDB content. Use at least two characters."
-        />
-      ) : searchQuery.isPending ? (
-        <LoadingPanel label="Fetching TMDB results" />
-      ) : searchQuery.isError ? (
-        <ErrorPanel message="Unable to load TMDB search right now." />
-      ) : searchQuery.data && searchQuery.data.length > 0 ? (
-        <FlatList
-          data={searchQuery.data}
-          keyExtractor={(item) => `${item.mediaType}-${item.tmdbId}`}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
-            <MediaCard
-              item={item}
-              compact
-              onPress={(next) => router.push(`/media/${next.mediaType}/${next.tmdbId}`)}
-            />
-          )}
-        />
-      ) : (
-        <EmptyPanel title="No results" subtitle="Try another keyword or switch media type." />
-      )}
+      {debouncedQuery.trim().length < 2
+        ? (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              refreshControl={(
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor="#FF9659"
+                  colors={['#FF9659']}
+                />
+              )}
+            >
+              <EmptyPanel
+                title="Start typing"
+                subtitle="Search supports all TMDB content. Use at least two characters."
+              />
+            </ScrollView>
+          )
+        : searchQuery.isPending
+          ? (
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                refreshControl={(
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    tintColor="#FF9659"
+                    colors={['#FF9659']}
+                  />
+                )}
+              >
+                <LoadingPanel label="Fetching TMDB results" />
+              </ScrollView>
+            )
+          : searchQuery.isError
+            ? (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  refreshControl={(
+                    <RefreshControl
+                      refreshing={refreshing}
+                      onRefresh={onRefresh}
+                      tintColor="#FF9659"
+                      colors={['#FF9659']}
+                    />
+                  )}
+                >
+                  <ErrorPanel message="Unable to load TMDB search right now." />
+                </ScrollView>
+              )
+            : searchQuery.data && searchQuery.data.length > 0
+              ? (
+                  <FlatList
+                    data={searchQuery.data}
+                    keyExtractor={item => `${item.mediaType}-${item.tmdbId}`}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.list}
+                    refreshing={refreshing}
+                    onRefresh={onRefresh}
+                    renderItem={({ item }) => (
+                      <MediaCard
+                        item={item}
+                        compact
+                        onPress={next => router.push(`/media/${next.mediaType}/${next.tmdbId}`)}
+                      />
+                    )}
+                  />
+                )
+              : (
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={(
+                      <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor="#FF9659"
+                        colors={['#FF9659']}
+                      />
+                    )}
+                  >
+                    <EmptyPanel title="No results" subtitle="Try another keyword or switch media type." />
+                  </ScrollView>
+                )}
     </CinematicScreen>
   );
 }

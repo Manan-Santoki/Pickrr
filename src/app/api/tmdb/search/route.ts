@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRequestUser } from '@/lib/mobile-auth';
+import { annotateWithJellyfinAvailability } from '@/services/jellyfin';
 import { searchTMDB } from '@/services/tmdb';
 import { z } from 'zod';
 
@@ -23,7 +24,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const results = await searchTMDB(parsed.data.query, parsed.data.type);
-    return NextResponse.json({ results });
+    const annotated = await annotateWithJellyfinAvailability(results);
+    return NextResponse.json({ results: annotated });
   } catch (err: unknown) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'TMDB search failed' },

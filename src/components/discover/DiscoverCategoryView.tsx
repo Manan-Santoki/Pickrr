@@ -8,6 +8,7 @@ import useSWR from 'swr';
 import {
   ArrowLeft,
   CalendarRange,
+  CheckCircle2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -461,6 +462,13 @@ export function DiscoverCategoryView({ section }: { section: DiscoverSection }) 
                   <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded bg-black/70 px-2 py-0.5 text-[11px] text-yellow-300">
                     <Star className="h-3 w-3 fill-current" />
                     {item.rating.toFixed(1)}
+                  </span>
+                ) : null}
+
+                {item.inJellyfin ? (
+                  <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded bg-emerald-950/85 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                    <CheckCircle2 className="h-3 w-3" />
+                    In Jellyfin
                   </span>
                 ) : null}
               </div>

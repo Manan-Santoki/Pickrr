@@ -19,6 +19,7 @@ export interface TMDBMedia {
   mediaType: MediaType;
   genres: string[];
   language: string | null;
+  inJellyfin: boolean;
 }
 
 export interface TMDBTrailer {
@@ -96,6 +97,7 @@ function normaliseMedia(item: Record<string, unknown>, mediaType: MediaType): TM
     mediaType,
     genres,
     language: typeof item.original_language === 'string' ? item.original_language : null,
+    inJellyfin: false,
   };
 }
 

@@ -6,13 +6,13 @@ export type MobilePlatform = 'ios' | 'android' | 'web' | 'unknown';
 
 export type DownloadStatus = 'downloading' | 'done' | 'failed' | 'paused';
 
-export type MobileNotificationType =
-  | 'download_completed'
-  | 'download_failed'
-  | 'download_paused'
-  | 'download_resumed'
-  | 'download_deleted'
-  | 'download_started';
+export type MobileNotificationType
+  = | 'download_completed'
+    | 'download_failed'
+    | 'download_paused'
+    | 'download_resumed'
+    | 'download_deleted'
+    | 'download_started';
 
 export type MobileToken = {
   accessToken: string;
@@ -69,6 +69,7 @@ export type TMDBMedia = {
   mediaType: MediaType;
   genres: string[];
   language: string | null;
+  inJellyfin: boolean;
 };
 
 export type TMDBTrailer = {
@@ -105,26 +106,26 @@ export type TMDBDetails = TMDBMedia & {
   cast: TMDBCastMember[];
 };
 
-export type DiscoverSection =
-  | 'trending'
-  | 'trending_movies'
-  | 'trending_tv'
-  | 'now_playing'
-  | 'upcoming'
-  | 'on_the_air'
-  | 'popular_movies'
-  | 'popular_tv'
-  | 'top_rated_movies'
-  | 'top_rated_tv'
-  | 'bollywood'
-  | 'hollywood'
-  | 'recommendations'
-  | 'netflix'
-  | 'prime'
-  | 'disney'
-  | 'apple'
-  | 'max'
-  | 'hulu';
+export type DiscoverSection
+  = | 'trending'
+    | 'trending_movies'
+    | 'trending_tv'
+    | 'now_playing'
+    | 'upcoming'
+    | 'on_the_air'
+    | 'popular_movies'
+    | 'popular_tv'
+    | 'top_rated_movies'
+    | 'top_rated_tv'
+    | 'bollywood'
+    | 'hollywood'
+    | 'recommendations'
+    | 'netflix'
+    | 'prime'
+    | 'disney'
+    | 'apple'
+    | 'max'
+    | 'hulu';
 
 export type DiscoverResponse = {
   section: DiscoverSection;
@@ -249,6 +250,7 @@ export type SettingsPayload = {
   QBIT_PASSWORD: string;
   TMDB_API_KEY: string;
   JELLYFIN_URL: string;
+  JELLYFIN_API_KEY: string;
   MOVIES_SAVE_PATH: string;
   TV_SAVE_PATH: string;
 };

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getRequestUser } from '@/lib/mobile-auth';
+import { annotateWithJellyfinAvailability } from '@/services/jellyfin';
 import {
   getTrending,
   getNowPlaying,
@@ -123,7 +124,8 @@ export async function GET(req: NextRequest) {
         if (recs.length >= 20) break;
       }
 
-      return NextResponse.json({ results: recs.slice(0, 20) });
+      const annotatedRecommendations = await annotateWithJellyfinAvailability(recs.slice(0, 20));
+      return NextResponse.json({ results: annotatedRecommendations });
     }
 
     if (section in OTT_SECTION_IDS) {
@@ -132,14 +134,16 @@ export async function GET(req: NextRequest) {
 
       const mediaType = (req.nextUrl.searchParams.get('mediaType') ?? 'movie') as 'movie' | 'tv';
       const results = await getOTTContent(providerId, mediaType);
-      return NextResponse.json({ results });
+      const annotatedOngoing = await annotateWithJellyfinAvailability(results);
+      return NextResponse.json({ results: annotatedOngoing });
     }
 
     const fetcher = sectionFetchers[section];
     if (!fetcher) return NextResponse.json({ error: 'Unknown section' }, { status: 400 });
 
     const results = await fetcher();
-    return NextResponse.json({ results });
+    const annotated = await annotateWithJellyfinAvailability(results);
+    return NextResponse.json({ results: annotated });
   } catch (error: unknown) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Discover failed' },

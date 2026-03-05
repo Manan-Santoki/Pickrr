@@ -13,6 +13,7 @@ import {
   Star,
   Globe2,
   Film,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
@@ -99,6 +100,13 @@ const PosterCard = memo(function PosterCard({
         {item.language && item.language !== 'en' ? (
           <div className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold uppercase text-gray-300 backdrop-blur-sm">
             {item.language}
+          </div>
+        ) : null}
+
+        {item.inJellyfin ? (
+          <div className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded bg-emerald-950/80 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-300 backdrop-blur-sm">
+            <CheckCircle2 className="h-2.5 w-2.5" />
+            In Jellyfin
           </div>
         ) : null}
       </div>

@@ -1,9 +1,11 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { showMessage } from 'react-native-flash-message';
 import { markNotificationsRead, pickrrQueryKeys, useNotifications } from '@/features/pickrr/api';
 import { formatRelativeTime } from '@/features/pickrr/format';
+import { usePullToRefresh, useRefetchOnFocus } from '../hooks/use-screen-refresh';
 import { ActionButton } from '../ui/action-button';
 import { CinematicScreen } from '../ui/cinematic-screen';
 import { EmptyPanel, ErrorPanel, LoadingPanel } from '../ui/state-panels';
@@ -12,68 +14,112 @@ export function NotificationsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const notificationsQuery = useNotifications(80);
+  const refreshNotifications = React.useCallback(async () => {
+    await notificationsQuery.refetch();
+  }, [notificationsQuery]);
+  useRefetchOnFocus(refreshNotifications);
+  const { refreshing, onRefresh } = usePullToRefresh(refreshNotifications);
 
   const markReadMutation = useMutation({
     mutationFn: markNotificationsRead,
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: pickrrQueryKeys.notifications });
+      showMessage({
+        message: variables.markAll ? 'All notifications marked as read' : 'Notification marked as read',
+        type: 'success',
+      });
+    },
+    onError: () => {
+      showMessage({
+        message: 'Failed to mark notification',
+        type: 'danger',
+      });
     },
   });
 
   const data = notificationsQuery.data;
 
   return (
-    <CinematicScreen>
-      <View style={styles.hero}>
-        <Text style={styles.title}>Notifications</Text>
-        <Text style={styles.subtitle}>Download lifecycle feed with unread state and deep links.</Text>
-        <Text style={styles.unreadCount}>Unread: {data?.unreadCount ?? 0}</Text>
-      </View>
+    <CinematicScreen scroll={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        refreshControl={(
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#FF9659"
+            colors={['#FF9659']}
+          />
+        )}
+      >
+        <View style={styles.hero}>
+          <Text style={styles.title}>Notifications</Text>
+          <Text style={styles.subtitle}>Download lifecycle feed with unread state and deep links.</Text>
+          <Text style={styles.unreadCount}>
+            Unread:
+            {data?.unreadCount ?? 0}
+          </Text>
+        </View>
 
-      <ActionButton
-        label="Mark all as read"
-        variant="secondary"
-        disabled={markReadMutation.isPending || !data || data.unreadCount === 0}
-        onPress={() => markReadMutation.mutate({ markAll: true })}
-      />
+        <ActionButton
+          label="Mark all as read"
+          variant="secondary"
+          disabled={markReadMutation.isPending || !data || data.unreadCount === 0}
+          onPress={() => markReadMutation.mutate({ markAll: true })}
+        />
 
-      {notificationsQuery.isPending ? (
-        <LoadingPanel label="Loading notifications" />
-      ) : notificationsQuery.isError ? (
-        <ErrorPanel message="Unable to load notification feed." />
-      ) : !data || data.notifications.length === 0 ? (
-        <EmptyPanel title="No notifications" subtitle="Download activity will appear here." />
-      ) : (
-        data.notifications.map((item) => {
-          const unread = !item.readAt;
-          return (
-            <Pressable
-              key={item.id}
-              style={[styles.row, unread ? styles.rowUnread : undefined]}
-              onPress={() => {
-                if (unread) {
-                  markReadMutation.mutate({ ids: [item.id] });
-                }
-                if (item.entityId) {
-                  router.push(`/downloads/${item.entityId}`);
-                }
-              }}
-              android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
-            >
-              <Text style={styles.rowTitle}>{item.title}</Text>
-              <Text style={styles.rowBody}>{item.body}</Text>
-              <Text style={styles.rowMeta}>
-                {item.type.replace(/_/g, ' ')} • {formatRelativeTime(item.createdAt)}
-              </Text>
-            </Pressable>
-          );
-        })
-      )}
+        {notificationsQuery.isPending
+          ? (
+              <LoadingPanel label="Loading notifications" />
+            )
+          : notificationsQuery.isError
+            ? (
+                <ErrorPanel message="Unable to load notification feed." />
+              )
+            : !data || data.notifications.length === 0
+                ? (
+                    <EmptyPanel title="No notifications" subtitle="Download activity will appear here." />
+                  )
+                : (
+                    data.notifications.map((item) => {
+                      const unread = !item.readAt;
+                      return (
+                        <Pressable
+                          key={item.id}
+                          style={[styles.row, unread ? styles.rowUnread : undefined]}
+                          onPress={() => {
+                            if (unread) {
+                              markReadMutation.mutate({ ids: [item.id] });
+                            }
+                            if (item.entityId) {
+                              router.push(`/downloads/${item.entityId}`);
+                            }
+                          }}
+                          android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
+                        >
+                          <Text style={styles.rowTitle}>{item.title}</Text>
+                          <Text style={styles.rowBody}>{item.body}</Text>
+                          <Text style={styles.rowMeta}>
+                            {item.type.replace(/_/g, ' ')}
+                            {' '}
+                            •
+                            {formatRelativeTime(item.createdAt)}
+                          </Text>
+                        </Pressable>
+                      );
+                    })
+                  )}
+      </ScrollView>
     </CinematicScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  content: {
+    gap: 12,
+    paddingBottom: 140,
+  },
   hero: {
     borderRadius: 18,
     padding: 16,

@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getRequestUser } from '@/lib/mobile-auth';
+import { createUserNotification, getDownloadNotificationPayload } from '@/lib/mobile-notifications';
 import { getPickrrTorrents } from '@/services/qbittorrent';
 import type { QbitTorrent } from '@/types/qbittorrent';
 
@@ -49,17 +50,13 @@ function findMatch(
   });
 }
 
-export async function GET() {
-  const session = await auth();
-  if (!session) {
+export async function GET(req: NextRequest) {
+  const requestUser = await getRequestUser(req);
+  if (!requestUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = session.user as { id?: string | null };
-  const userId = typeof user.id === 'string' && user.id.length > 0 ? user.id : null;
-  if (!userId) {
-    return NextResponse.json([]);
-  }
+  const userId = requestUser.id;
 
   const [downloads, torrents] = await Promise.all([
     db.download.findMany({
@@ -70,6 +67,7 @@ export async function GET() {
   ]);
 
   const updates: Promise<unknown>[] = [];
+  const notifications: Promise<void>[] = [];
   const matchByDownloadId = new Map<string, QbitTorrent>();
 
   for (const torrent of torrents) {
@@ -91,6 +89,21 @@ export async function GET() {
     const shouldUpdateHash = !current.qbitHash && torrent.hash;
 
     if (shouldUpdateStatus || shouldUpdateHash) {
+      if (shouldUpdateStatus) {
+        const payload = getDownloadNotificationPayload(nextStatus, current.title);
+        if (payload) {
+          notifications.push(
+            createUserNotification({
+              userId,
+              type: payload.type,
+              title: payload.title,
+              body: payload.body,
+              entityId: current.id,
+            })
+          );
+        }
+      }
+
       updates.push(
         db.download.update({
           where: { id: current.id },
@@ -105,6 +118,9 @@ export async function GET() {
 
   if (updates.length > 0) {
     await Promise.all(updates);
+  }
+  if (notifications.length > 0) {
+    await Promise.all(notifications);
   }
 
   return NextResponse.json(

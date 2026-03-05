@@ -1,32 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getRequestUser } from '@/lib/mobile-auth';
+import { createUserNotification, getDownloadNotificationPayload } from '@/lib/mobile-notifications';
 import { getPickrrTorrents, getTorrentByHash } from '@/services/qbittorrent';
+
+type DownloadStatus = 'downloading' | 'done' | 'failed' | 'paused';
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-function mapStatus(state: string, progress: number): 'downloading' | 'done' | 'failed' | 'paused' {
+function mapStatus(state: string, progress: number): DownloadStatus {
   if (state === 'error' || state === 'missingFiles') return 'failed';
   if (state.startsWith('paused')) return 'paused';
   if (progress >= 1 || state === 'uploading' || state === 'stalledUP') return 'done';
   return 'downloading';
 }
 
+function normalizeDownloadStatus(status: string): DownloadStatus {
+  if (status === 'done' || status === 'failed' || status === 'paused') {
+    return status;
+  }
+  return 'downloading';
+}
+
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const session = await auth();
-  if (!session) {
+  const requestUser = await getRequestUser(req);
+  if (!requestUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const user = session.user as { id?: string | null };
-  const userId = typeof user.id === 'string' && user.id.length > 0 ? user.id : null;
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const userId = requestUser.id;
 
   const download = await db.download.findUnique({
     where: { id: params.id },
@@ -53,7 +59,9 @@ export async function GET(
       null;
   }
 
-  const status = torrent ? mapStatus(torrent.state, torrent.progress) : download.status;
+  const status = torrent
+    ? mapStatus(torrent.state, torrent.progress)
+    : normalizeDownloadStatus(download.status);
 
   if (status !== download.status || (!download.qbitHash && torrent?.hash)) {
     await db.download.update({
@@ -63,6 +71,19 @@ export async function GET(
         qbitHash: download.qbitHash ?? torrent?.hash ?? null,
       },
     });
+
+    if (status !== download.status) {
+      const payload = getDownloadNotificationPayload(status, download.title);
+      if (payload) {
+        await createUserNotification({
+          userId,
+          type: payload.type,
+          title: payload.title,
+          body: payload.body,
+          entityId: download.id,
+        });
+      }
+    }
   }
 
   return NextResponse.json({

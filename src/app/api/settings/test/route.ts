@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { getRequestUser } from '@/lib/mobile-auth';
 import { testProwlarrConnection } from '@/services/prowlarr';
 import { testQbitConnection } from '@/services/qbittorrent';
 import { getConfigValue } from '@/lib/settings';
@@ -37,8 +37,8 @@ async function testJellyfinConnection(): Promise<boolean> {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) {
+  const user = await getRequestUser(req);
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

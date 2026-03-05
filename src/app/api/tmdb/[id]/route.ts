@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
+import { getRequestUser } from '@/lib/mobile-auth';
 import { getTMDBDetails } from '@/services/tmdb';
 
 const querySchema = z.object({
@@ -11,8 +11,8 @@ export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const session = await auth();
-  if (!session) {
+  const user = await getRequestUser(req);
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

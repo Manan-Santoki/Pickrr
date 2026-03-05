@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getRequestUser } from '@/lib/mobile-auth';
 import {
   getTrending,
   getNowPlaying,
@@ -62,10 +62,9 @@ const sectionFetchers: Partial<Record<Section, () => Promise<TMDBMedia[]>>> = {
 };
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const sessionUser = session.user as { id?: string | null };
-  const userId = typeof sessionUser?.id === 'string' && sessionUser.id.length > 0 ? sessionUser.id : null;
+  const user = await getRequestUser(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = user.id;
 
   const section = (req.nextUrl.searchParams.get('section') ?? 'trending') as Section;
 

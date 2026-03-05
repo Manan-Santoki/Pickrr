@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getRequestUser } from '@/lib/mobile-auth';
+import { createUserNotification } from '@/lib/mobile-notifications';
 import { deleteTorrent, getTorrentByHash, pauseTorrent, resumeTorrent } from '@/services/qbittorrent';
 
 const schema = z.object({
@@ -11,15 +12,11 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) {
+  const requestUser = await getRequestUser(req);
+  if (!requestUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const user = session.user as { id?: string | null };
-  const userId = typeof user.id === 'string' && user.id.length > 0 ? user.id : null;
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const userId = requestUser.id;
 
   const body = await req.json();
   const parsed = schema.safeParse(body);
@@ -52,6 +49,14 @@ export async function POST(req: NextRequest) {
         },
         data: { status: 'paused' },
       });
+
+      await createUserNotification({
+        userId,
+        type: 'download_paused',
+        title: 'Download paused',
+        body: `${torrent?.name ?? hash} has been paused.`,
+        entityId: owned.id,
+      });
     }
 
     if (action === 'resume') {
@@ -62,6 +67,14 @@ export async function POST(req: NextRequest) {
           OR: [{ qbitHash: hash }, ...(torrent ? [{ torrentTitle: torrent.name }] : [])],
         },
         data: { status: 'downloading' },
+      });
+
+      await createUserNotification({
+        userId,
+        type: 'download_resumed',
+        title: 'Download resumed',
+        body: `${torrent?.name ?? hash} resumed successfully.`,
+        entityId: owned.id,
       });
     }
 
@@ -76,6 +89,14 @@ export async function POST(req: NextRequest) {
           status: 'failed',
           qbitHash: hash,
         },
+      });
+
+      await createUserNotification({
+        userId,
+        type: 'download_deleted',
+        title: 'Download removed',
+        body: `${torrent?.name ?? hash} was removed from qBittorrent.`,
+        entityId: owned.id,
       });
     }
 

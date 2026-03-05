@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { createUserNotification } from '@/lib/mobile-notifications';
+import { getRequestUser } from '@/lib/mobile-auth';
 import { getConfigValue } from '@/lib/settings';
 import { addTorrent } from '@/services/qbittorrent';
 
@@ -38,18 +39,12 @@ async function resolveSavePath(mediaType: 'movie' | 'tv', explicitPath?: string)
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session) {
+  const requestUser = await getRequestUser(req);
+  if (!requestUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const sessionUser = session.user as { id?: string | null };
-  const userId = typeof sessionUser?.id === 'string' && sessionUser.id.length > 0
-    ? sessionUser.id
-    : null;
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const userId = requestUser.id;
 
   const body = await req.json();
   const parsed = downloadSchema.safeParse(body);
@@ -121,6 +116,14 @@ export async function POST(req: NextRequest) {
         inWatchlist: true,
         autoFavoritedAt: new Date(),
       },
+    });
+
+    await createUserNotification({
+      userId,
+      type: 'download_started',
+      title: 'Download queued',
+      body: `${payload.title} has been added to qBittorrent.`,
+      entityId: created.id,
     });
 
     return NextResponse.json({ ok: true, id: created.id, autoFavorited: true });

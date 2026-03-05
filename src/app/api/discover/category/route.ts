@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
 import {
   DISCOVER_LABELS,
   OTT_SECTION_IDS,
@@ -10,6 +9,7 @@ import {
   type DiscoverSection,
 } from '@/lib/discover';
 import { db } from '@/lib/db';
+import { getRequestUser } from '@/lib/mobile-auth';
 import { getConfigValue } from '@/lib/settings';
 import { getRecommendations, type MediaType, type TMDBMedia } from '@/services/tmdb';
 
@@ -423,12 +423,11 @@ async function fetchSectionFromTmdb(
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) {
+  const user = await getRequestUser(req);
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const sessionUser = session.user as { id?: string | null };
-  const userId = typeof sessionUser?.id === 'string' && sessionUser.id.length > 0 ? sessionUser.id : null;
+  const userId = user.id;
 
   const parsed = querySchema.safeParse({
     section: req.nextUrl.searchParams.get('section'),

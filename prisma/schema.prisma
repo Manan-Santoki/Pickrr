@@ -39,31 +39,87 @@ model Setting {
 }
 
 model User {
-  id              String            @id @default(cuid())
-  username        String            @unique
-  password        String
-  role            String            @default("user")
-  createdAt       DateTime          @default(now())
-  downloads       Download[]
-  mediaPreferences MediaPreference[]
+  id                String             @id @default(cuid())
+  username          String             @unique
+  password          String
+  role              String             @default("user")
+  createdAt         DateTime           @default(now())
+  downloads         Download[]
+  mediaPreferences  MediaPreference[]
+  mobileSessions    MobileSession[]
+  devices           UserDevice[]
+  notifications     UserNotification[]
 }
 
 model MediaPreference {
-  id            String   @id @default(cuid())
-  userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tmdbId        Int
-  mediaType     String   // "movie" | "tv"
-  title         String
-  year          Int?
-  posterPath    String?
-  isFavorite    Boolean  @default(false)
-  inWatchlist   Boolean  @default(false)
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tmdbId          Int
+  mediaType       String   // "movie" | "tv"
+  title           String
+  year            Int?
+  posterPath      String?
+  isFavorite      Boolean  @default(false)
+  inWatchlist     Boolean  @default(false)
   autoFavoritedAt DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@unique([userId, tmdbId, mediaType])
   @@index([userId, isFavorite, createdAt])
   @@index([userId, inWatchlist, createdAt])
+}
+
+model MobileSession {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokenHash String    @unique
+  deviceId         String?
+  deviceName       String?
+  deviceModel      String?
+  platform         String?
+  appVersion       String?
+  ipAddress        String?
+  userAgent        String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, revokedAt])
+}
+
+model UserDevice {
+  id            String             @id @default(cuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expoPushToken String             @unique
+  platform      String
+  appVersion    String?
+  lastSeenAt    DateTime           @default(now())
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  notifications UserNotification[]
+
+  @@index([userId, lastSeenAt])
+}
+
+model UserNotification {
+  id        String     @id @default(cuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String
+  entityId  String?
+  readAt    DateTime?
+  createdAt DateTime   @default(now())
+  deviceId  String?
+  device    UserDevice? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt, createdAt])
 }

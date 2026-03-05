@@ -1,22 +1,18 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getRequestUser } from '@/lib/mobile-auth';
 import { getPickrrTorrents } from '@/services/qbittorrent';
 
 function normalize(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
-export async function GET() {
-  const session = await auth();
-  if (!session) {
+export async function GET(req: NextRequest) {
+  const requestUser = await getRequestUser(req);
+  if (!requestUser) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const user = session.user as { id?: string | null };
-  const userId = typeof user.id === 'string' && user.id.length > 0 ? user.id : null;
-  if (!userId) {
-    return NextResponse.json([]);
-  }
+  const userId = requestUser.id;
 
   try {
     const [downloads, torrents] = await Promise.all([

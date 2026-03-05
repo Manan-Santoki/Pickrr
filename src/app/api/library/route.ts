@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getRequestUser } from '@/lib/mobile-auth';
 
 const querySchema = z.object({
   list: z.enum(['favorites', 'watchlist', 'all']).default('all'),
@@ -9,16 +9,12 @@ const querySchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session) {
+  const user = await getRequestUser(req);
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = session.user as { id?: string | null };
-  const userId = typeof user.id === 'string' && user.id.length > 0 ? user.id : null;
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const userId = user.id;
 
   const parsed = querySchema.safeParse({
     list: req.nextUrl.searchParams.get('list') ?? undefined,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { getRequestUser } from '@/lib/mobile-auth';
 
 const querySchema = z.object({
   tmdbId: z.coerce.number().int().positive(),
@@ -18,23 +18,12 @@ const bodySchema = z.object({
   inWatchlist: z.boolean().optional(),
 });
 
-async function resolveUserId(): Promise<string | null> {
-  const session = await auth();
-  if (!session) return null;
-
-  const user = session.user as { id?: string | null };
-  if (typeof user.id === 'string' && user.id.length > 0) {
-    return user.id;
-  }
-
-  return null;
-}
-
 export async function GET(req: NextRequest) {
-  const userId = await resolveUserId();
-  if (!userId) {
+  const user = await getRequestUser(req);
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const userId = user.id;
 
   const parsed = querySchema.safeParse({
     tmdbId: req.nextUrl.searchParams.get('tmdbId') ?? undefined,
@@ -65,10 +54,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const userId = await resolveUserId();
-  if (!userId) {
+  const user = await getRequestUser(req);
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const userId = user.id;
 
   const body = await req.json();
   const parsed = bodySchema.safeParse(body);

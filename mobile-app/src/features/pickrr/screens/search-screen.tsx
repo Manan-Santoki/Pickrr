@@ -131,7 +131,10 @@ export function SearchScreen() {
                       <MediaCard
                         item={item}
                         compact
-                        onPress={next => router.push(`/media/${next.mediaType}/${next.tmdbId}`)}
+                        onPress={(next) => {
+                          const jellyfinParam = next.inJellyfin ? '?inJellyfin=1' : '';
+                          router.push(`/media/${next.mediaType}/${next.tmdbId}${jellyfinParam}`);
+                        }}
                       />
                     )}
                   />

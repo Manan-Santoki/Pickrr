@@ -14,10 +14,15 @@ const discoverRows: Array<{ key: DiscoverSection; label: string; subtitle: strin
   { key: 'now_playing', label: 'Now Playing', subtitle: 'Current theater cycle' },
   { key: 'popular_tv', label: 'Popular TV', subtitle: 'High traction series' },
   { key: 'recommendations', label: 'For You', subtitle: 'Based on library and downloads' },
-  { key: 'netflix', label: 'Netflix Picks', subtitle: 'Provider feed' },
-  { key: 'prime', label: 'Prime Highlights', subtitle: 'Provider feed' },
+  { key: 'netflix', label: 'Netflix Picks', subtitle: 'Streaming provider row' },
+  { key: 'prime', label: 'Prime Highlights', subtitle: 'Streaming provider row' },
+  { key: 'disney', label: 'Disney+', subtitle: 'Streaming provider row' },
+  { key: 'apple', label: 'Apple TV+', subtitle: 'Streaming provider row' },
+  { key: 'max', label: 'HBO Max', subtitle: 'Streaming provider row' },
+  { key: 'hulu', label: 'Hulu', subtitle: 'Streaming provider row' },
 ];
 
+// eslint-disable-next-line max-lines-per-function
 export function DiscoverHomeScreen() {
   const router = useRouter();
 
@@ -27,6 +32,10 @@ export function DiscoverHomeScreen() {
   const queryRecommendations = useDiscoverSection('recommendations');
   const queryNetflix = useDiscoverSection('netflix');
   const queryPrime = useDiscoverSection('prime');
+  const queryDisney = useDiscoverSection('disney');
+  const queryApple = useDiscoverSection('apple');
+  const queryMax = useDiscoverSection('max');
+  const queryHulu = useDiscoverSection('hulu');
   const refreshDiscover = React.useCallback(async () => {
     await Promise.all([
       queryTrending.refetch(),
@@ -35,8 +44,23 @@ export function DiscoverHomeScreen() {
       queryRecommendations.refetch(),
       queryNetflix.refetch(),
       queryPrime.refetch(),
+      queryDisney.refetch(),
+      queryApple.refetch(),
+      queryMax.refetch(),
+      queryHulu.refetch(),
     ]);
-  }, [queryNetflix, queryNowPlaying, queryPopularTv, queryPrime, queryRecommendations, queryTrending]);
+  }, [
+    queryApple,
+    queryDisney,
+    queryHulu,
+    queryMax,
+    queryNetflix,
+    queryNowPlaying,
+    queryPopularTv,
+    queryPrime,
+    queryRecommendations,
+    queryTrending,
+  ]);
 
   useRefetchOnFocus(refreshDiscover);
   const { refreshing, onRefresh } = usePullToRefresh(refreshDiscover);
@@ -57,10 +81,10 @@ export function DiscoverHomeScreen() {
     recommendations: { data: queryRecommendations.data, isPending: queryRecommendations.isPending },
     netflix: { data: queryNetflix.data, isPending: queryNetflix.isPending },
     prime: { data: queryPrime.data, isPending: queryPrime.isPending },
-    disney: { data: [], isPending: false },
-    apple: { data: [], isPending: false },
-    max: { data: [], isPending: false },
-    hulu: { data: [], isPending: false },
+    disney: { data: queryDisney.data, isPending: queryDisney.isPending },
+    apple: { data: queryApple.data, isPending: queryApple.isPending },
+    max: { data: queryMax.data, isPending: queryMax.isPending },
+    hulu: { data: queryHulu.data, isPending: queryHulu.isPending },
   };
 
   return (
@@ -105,7 +129,10 @@ export function DiscoverHomeScreen() {
                           <MediaCard
                             key={`${row.key}-${item.mediaType}-${item.tmdbId}`}
                             item={item}
-                            onPress={next => router.push(`/media/${next.mediaType}/${next.tmdbId}`)}
+                            onPress={(next) => {
+                              const jellyfinParam = next.inJellyfin ? '?inJellyfin=1' : '';
+                              router.push(`/media/${next.mediaType}/${next.tmdbId}${jellyfinParam}`);
+                            }}
                           />
                         ))}
                       </ScrollView>

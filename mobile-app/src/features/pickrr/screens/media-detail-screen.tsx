@@ -14,6 +14,7 @@ import {
   updateLibraryStatus,
   useLibraryStatus,
   useMediaDetail,
+  useSettings,
 } from '@/features/pickrr/api';
 import { formatBytes } from '@/features/pickrr/format';
 import { ActionButton } from '../ui/action-button';
@@ -33,13 +34,15 @@ function normalizeId(value: string | string[] | undefined): number {
 
 // eslint-disable-next-line max-lines-per-function
 export function MediaDetailScreen() {
-  const params = useLocalSearchParams<{ type: string; id: string }>();
+  const params = useLocalSearchParams<{ type: string; id: string; inJellyfin?: string }>();
   const mediaType = normalizeType(params.type);
   const tmdbId = normalizeId(params.id);
+  const jellyfinHint = params.inJellyfin === '1' || params.inJellyfin === 'true';
 
   const queryClient = useQueryClient();
   const detailQuery = useMediaDetail(tmdbId, mediaType);
   const libraryStatus = useLibraryStatus(tmdbId, mediaType);
+  const settingsQuery = useSettings();
 
   const [torrentQuery, setTorrentQuery] = React.useState('');
   const [torrentResults, setTorrentResults] = React.useState<TorrentResult[]>([]);
@@ -92,6 +95,17 @@ export function MediaDetailScreen() {
       setTorrentQuery(base);
     }
   }, [detailQuery.data]);
+
+  const jellyfinOpenUrl = React.useMemo(() => {
+    const details = detailQuery.data;
+    const base = settingsQuery.data?.JELLYFIN_URL?.trim();
+    if (!base || (!details?.inJellyfin && !jellyfinHint)) {
+      return null;
+    }
+
+    const title = details?.title ?? '';
+    return `${base.replace(/\/$/, '')}/web/index.html#!/search.html?query=${encodeURIComponent(title)}`;
+  }, [detailQuery.data, jellyfinHint, settingsQuery.data?.JELLYFIN_URL]);
 
   if (detailQuery.isPending) {
     return (
@@ -261,6 +275,23 @@ export function MediaDetailScreen() {
                   />
                   <Text style={styles.smallMuted}>Trailer opens in YouTube/browser (no in-app player).</Text>
                 </View>
+              )
+            : null}
+
+          {jellyfinOpenUrl
+            ? (
+                <ActionButton
+                  label="Open in Jellyfin"
+                  variant="secondary"
+                  onPress={() => {
+                    void Linking.openURL(jellyfinOpenUrl).catch(() => {
+                      showMessage({
+                        message: 'Unable to open Jellyfin URL',
+                        type: 'danger',
+                      });
+                    });
+                  }}
+                />
               )
             : null}
         </View>

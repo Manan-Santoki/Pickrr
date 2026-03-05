@@ -40,6 +40,7 @@ function normalizeSection(value: string | string[] | undefined): DiscoverSection
   return 'trending';
 }
 
+// eslint-disable-next-line max-lines-per-function
 export function DiscoverCategoryScreen() {
   const params = useLocalSearchParams<{ section: string }>();
   const router = useRouter();
@@ -66,7 +67,10 @@ export function DiscoverCategoryScreen() {
   return (
     <CinematicScreen scroll={false} contentContainerStyle={styles.container}>
       <View style={styles.hero}>
-        <Text style={styles.title}>Category: {section.replace(/_/g, ' ')}</Text>
+        <Text style={styles.title}>
+          Category:
+          {section.replace(/_/g, ' ')}
+        </Text>
         <Text style={styles.subtitle}>Fine-grained discover filters with pagination.</Text>
       </View>
 
@@ -120,39 +124,51 @@ export function DiscoverCategoryScreen() {
         </View>
       </View>
 
-      {categoryQuery.isPending ? (
-        <LoadingPanel label="Loading discover category" />
-      ) : categoryQuery.isError || !categoryQuery.data ? (
-        <ErrorPanel message="Unable to load category content." />
-      ) : categoryQuery.data.results.length === 0 ? (
-        <EmptyPanel title="No content" subtitle="Adjust filters and try again." />
-      ) : (
-        <FlatList
-          data={categoryQuery.data.results}
-          keyExtractor={(item) => `${item.mediaType}-${item.tmdbId}`}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <MediaCard
-              item={item}
-              compact
-              onPress={(next) => router.push(`/media/${next.mediaType}/${next.tmdbId}`)}
-            />
-          )}
-        />
-      )}
+      {categoryQuery.isPending
+        ? (
+            <LoadingPanel label="Loading discover category" />
+          )
+        : categoryQuery.isError || !categoryQuery.data
+          ? (
+              <ErrorPanel message="Unable to load category content." />
+            )
+          : categoryQuery.data.results.length === 0
+            ? (
+                <EmptyPanel title="No content" subtitle="Adjust filters and try again." />
+              )
+            : (
+                <FlatList
+                  data={categoryQuery.data.results}
+                  keyExtractor={item => `${item.mediaType}-${item.tmdbId}`}
+                  contentContainerStyle={styles.list}
+                  showsVerticalScrollIndicator={false}
+                  renderItem={({ item }) => (
+                    <MediaCard
+                      item={item}
+                      compact
+                      onPress={(next) => {
+                        const jellyfinParam = next.inJellyfin ? '?inJellyfin=1' : '';
+                        router.push(`/media/${next.mediaType}/${next.tmdbId}${jellyfinParam}`);
+                      }}
+                    />
+                  )}
+                />
+              )}
 
       <View style={styles.paginationRow}>
         <ActionButton
           label="Prev"
           variant="secondary"
-          onPress={() => setPage((previous) => Math.max(1, previous - 1))}
+          onPress={() => setPage(previous => Math.max(1, previous - 1))}
           disabled={page <= 1}
         />
-        <Text style={styles.pageLabel}>Page {page}</Text>
+        <Text style={styles.pageLabel}>
+          Page
+          {page}
+        </Text>
         <ActionButton
           label="Next"
-          onPress={() => setPage((previous) => previous + 1)}
+          onPress={() => setPage(previous => previous + 1)}
           disabled={Boolean(categoryQuery.data && page >= categoryQuery.data.totalPages)}
         />
       </View>

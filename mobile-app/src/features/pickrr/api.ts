@@ -205,6 +205,7 @@ export async function updateDownloadAction(payload: {
   hash: string;
   action: 'pause' | 'resume' | 'delete';
   deleteFiles?: boolean;
+  downloadId?: string;
 }) {
   const response = await client.post<{ ok: boolean }>('/api/downloads/remove', payload);
   return response.data;

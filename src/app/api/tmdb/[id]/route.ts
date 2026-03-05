@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getRequestUser } from '@/lib/mobile-auth';
+import { isInJellyfin } from '@/services/jellyfin';
 import { getTMDBDetails } from '@/services/tmdb';
 
 const querySchema = z.object({
@@ -31,7 +32,11 @@ export async function GET(
 
   try {
     const details = await getTMDBDetails(tmdbId, parsed.data.type);
-    return NextResponse.json(details);
+    const inJellyfin = await isInJellyfin(details);
+    return NextResponse.json({
+      ...details,
+      inJellyfin,
+    });
   } catch (error: unknown) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch TMDB details' },

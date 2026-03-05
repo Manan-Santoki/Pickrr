@@ -1,4 +1,5 @@
 import type { AppDownload } from '@/types/api';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import * as React from 'react';
@@ -21,6 +22,7 @@ function splitDownloads(downloads: AppDownload[]) {
 export function DownloadsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [hiddenDownloadIds, setHiddenDownloadIds] = React.useState<Set<string>>(new Set());
 
   const downloadsQuery = useDownloads();
   const refreshDownloads = React.useCallback(async () => {
@@ -32,6 +34,13 @@ export function DownloadsScreen() {
     mutationFn: updateDownloadAction,
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: pickrrQueryKeys.downloads });
+      if (variables.action === 'delete' && variables.downloadId) {
+        setHiddenDownloadIds((previous) => {
+          const next = new Set(previous);
+          next.add(variables.downloadId!);
+          return next;
+        });
+      }
       const actionLabel = variables.action === 'delete'
         ? 'Download removed'
         : variables.action === 'pause'
@@ -55,7 +64,11 @@ export function DownloadsScreen() {
     },
   });
 
-  const grouped = splitDownloads(downloadsQuery.data ?? []);
+  const visibleDownloads = React.useMemo(
+    () => (downloadsQuery.data ?? []).filter(download => !hiddenDownloadIds.has(download.id)),
+    [downloadsQuery.data, hiddenDownloadIds],
+  );
+  const grouped = splitDownloads(visibleDownloads);
 
   return (
     <CinematicScreen scroll={false} contentContainerStyle={styles.container}>
@@ -143,6 +156,7 @@ export function DownloadsScreen() {
   );
 }
 
+// eslint-disable-next-line max-lines-per-function
 function DownloadSection({
   title,
   items,
@@ -152,7 +166,12 @@ function DownloadSection({
   title: string;
   items: AppDownload[];
   actionMutation: {
-    mutate: (payload: { hash: string; action: 'pause' | 'resume' | 'delete'; deleteFiles?: boolean }) => void;
+    mutate: (payload: {
+      hash: string;
+      action: 'pause' | 'resume' | 'delete';
+      deleteFiles?: boolean;
+      downloadId?: string;
+    }) => void;
     isPending: boolean;
   };
   onOpenDetail: (id: string) => void;
@@ -168,6 +187,15 @@ function DownloadSection({
             items.map((item) => {
               const hash = item.hash ?? item.qbitHash;
               const isPaused = item.status === 'paused';
+              const progress = Math.max(0, Math.min(1, item.progress));
+              const progressPercent = (progress * 100).toFixed(1);
+              const statusTone = item.status === 'failed'
+                ? styles.statusPillDanger
+                : item.status === 'done'
+                  ? styles.statusPillSuccess
+                  : item.status === 'paused'
+                    ? styles.statusPillWarning
+                    : styles.statusPillNeutral;
 
               return (
                 <Pressable
@@ -176,14 +204,24 @@ function DownloadSection({
                   onPress={() => onOpenDetail(item.id)}
                   android_ripple={{ color: 'rgba(255,255,255,0.08)' }}
                 >
-                  <Text numberOfLines={2} style={styles.downloadTitle}>
-                    {item.title}
-                  </Text>
+                  <View style={styles.headerRow}>
+                    <Text numberOfLines={2} style={styles.downloadTitle}>
+                      {item.title}
+                    </Text>
+                    <View style={[styles.statusPill, statusTone]}>
+                      <Ionicons
+                        name={item.status === 'done' ? 'checkmark-circle' : item.status === 'failed' ? 'alert-circle' : 'time'}
+                        size={12}
+                        color="#F8FBFF"
+                      />
+                      <Text style={styles.statusPillText}>{item.status.toUpperCase()}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${Math.max(progress * 100, 2)}%` }]} />
+                  </View>
                   <Text style={styles.meta}>
-                    {item.status.toUpperCase()}
-                    {' '}
-                    •
-                    {(item.progress * 100).toFixed(1)}
+                    {progressPercent}
                     % •
                     {formatBytes(Number(item.size))}
                   </Text>
@@ -224,6 +262,7 @@ function DownloadSection({
                         actionMutation.mutate({
                           hash,
                           action: 'delete',
+                          downloadId: item.id,
                         });
                       }}
                     />
@@ -294,6 +333,50 @@ const styles = StyleSheet.create({
     color: '#F5F9FF',
     fontSize: 13,
     fontWeight: '700',
+    flex: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    minHeight: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  statusPillNeutral: {
+    backgroundColor: 'rgba(71,111,255,0.45)',
+  },
+  statusPillWarning: {
+    backgroundColor: 'rgba(201,130,20,0.55)',
+  },
+  statusPillSuccess: {
+    backgroundColor: 'rgba(16,145,73,0.58)',
+  },
+  statusPillDanger: {
+    backgroundColor: 'rgba(189,40,60,0.66)',
+  },
+  statusPillText: {
+    color: '#F8FBFF',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(128,147,177,0.24)',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 999,
+    backgroundColor: '#FF9659',
   },
   meta: {
     color: '#9AB0CC',

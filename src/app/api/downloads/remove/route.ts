@@ -80,14 +80,10 @@ export async function POST(req: NextRequest) {
 
     if (action === 'delete') {
       await deleteTorrent(hash, deleteFiles);
-      await db.download.updateMany({
+      await db.download.deleteMany({
         where: {
           userId,
           OR: [{ qbitHash: hash }, ...(torrent ? [{ torrentTitle: torrent.name }] : [])],
-        },
-        data: {
-          status: 'failed',
-          qbitHash: hash,
         },
       });
 
